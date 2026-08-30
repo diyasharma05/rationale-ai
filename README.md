@@ -42,7 +42,15 @@ pip install -r requirements.txt
 #    and resets the decision ledger.
 python data/generate_data.py
 
-# 5. Launch the app
+# 5. Add your Anthropic API key (OPTIONAL — skip it and the app runs fully
+#    offline on bundled responses). Pick ONE:
+#    a) this terminal session only —
+#       Windows:        $env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+#       macOS / Linux:  export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+#    b) a .env file:    copy .env.example to .env and paste your key into it
+#    c) inside the app: sidebar → LLM settings → paste key → "Use this key"
+
+# 6. Launch the app
 streamlit run app.py
 ```
 
