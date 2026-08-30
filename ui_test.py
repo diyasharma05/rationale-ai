@@ -53,7 +53,7 @@ print("3) plain-English ask box routes to a KPI...")
 at2 = new_app()
 at2.run()
 at2.radio[0].set_value(NAV_INV).run()
-at2.text_input[0].set_value("what happened to complaints?").run()
+at2.text_input(key="ask_box").set_value("what happened to complaints?").run()
 assert not at2.exception, at2.exception
 body = all_text(at2)
 assert "Complaint Rate" in body, "intent match failed: " + body[:300]

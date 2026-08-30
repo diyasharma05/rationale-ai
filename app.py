@@ -2,6 +2,7 @@
 
 Run:  streamlit run app.py
 """
+import os
 import re
 import time
 
@@ -577,6 +578,25 @@ with st.sidebar:
     st.markdown("".join(method_chip(k) for k in ("sql", "stats", "ml", "llm")),
                 unsafe_allow_html=True)
     st.caption("The engine is SQL + statistics + ML first; the LLM only writes language.")
+    with st.expander("LLM settings"):
+        st.caption("Mode: **" + ("Live : Claude API" if llm.mode == "live"
+                                 else "Offline : cached responses (no key needed)") + "**")
+        key_in = st.text_input("Anthropic API key", type="password",
+                               placeholder="sk-ant-…", key="api_key_input",
+                               help="Held in memory for this session only — never written "
+                                    "to disk. If the key is invalid, the app quietly falls "
+                                    "back to offline responses.")
+        kc1, kc2 = st.columns(2)
+        if kc1.button("Use this key", key="apply_key", width="stretch"):
+            if key_in.strip():
+                os.environ["ANTHROPIC_API_KEY"] = key_in.strip()
+                os.environ.pop("MOCK_MODE", None)
+                get_llm.clear()
+                st.rerun()
+        if llm.mode == "live" and kc2.button("Go offline", key="clear_key", width="stretch"):
+            os.environ["MOCK_MODE"] = "1"
+            get_llm.clear()
+            st.rerun()
     if st.button("↺ Reset demo state"):
         fb.reset_ledger()
         st.session_state.investigations = {}
@@ -819,7 +839,7 @@ elif nav == "Investigation":
     ids = list(kpis)
 
     # --- ask in plain English (LLM-assisted intent understanding) ---
-    q = st.text_input("Ask a question in plain English",
+    q = st.text_input("Ask a question in plain English", key="ask_box",
                       placeholder='e.g. "Why did revenue fall in July?" or "What happened to complaints?"')
     if q:
         matched, how = match_kpi(q, kpis)

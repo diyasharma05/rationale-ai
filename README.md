@@ -54,9 +54,11 @@ and click **Investigate** on any flagged KPI. Stop the app with `Ctrl+C`.
 - **Offline (default):** with no `ANTHROPIC_API_KEY` set — or with `MOCK_MODE=1` —
   every investigation replays the committed fixtures in `llm/fixtures/` plus
   deterministic fallbacks. Nothing can fail on stage.
-- **Live:** set `ANTHROPIC_API_KEY` in your environment (or copy `.env.example` →
-  `.env` and fill it in) and restart. Narratives are then generated fresh by
-  Claude (~10–20 s per investigation, ≈ ₹1–3 each).
+- **Live:** either paste your key in the app — sidebar → **LLM settings** →
+  *Anthropic API key* → "Use this key" (held in memory only, never written to
+  disk) — or set `ANTHROPIC_API_KEY` in your environment / a `.env` file before
+  launching. Narratives are then generated fresh by Claude (~10–20 s per
+  investigation, ≈ ₹1–3 each). "Go offline" switches back any time.
 - `python record_fixtures.py` refreshes the offline fixtures from one live run
   (only this script can write fixtures).
 
