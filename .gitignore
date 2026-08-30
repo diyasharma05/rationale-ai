@@ -17,5 +17,6 @@ data/state/
 st_out.txt
 st_err.txt
 
-# local documents (remove this line if you want the proposal deck in the repo)
+# local documents (remove these lines if you want them in the repo)
 *.pptx
+VIDEO_SCRIPT.md
