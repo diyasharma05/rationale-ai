@@ -1,0 +1,9 @@
+{
+  "greeting": "Morning \u2014 quick look at July",
+  "summary": "Revenue is down about 7% this month, roughly \u20b926 lakh gone from the daily run-rate, and it's tracking closely with fulfilment slipping and enterprise accounts shrinking to 37. Complaints jumped 29%, which likely connects to that fulfilment miss. Start with marketing conversion though \u2014 down 16% while everything around it looks stable, so that smells like a tracking break rather than a real customer drop.",
+  "watchlist": [
+    "Marketing Conversion Rate",
+    "Fulfilment SLA %",
+    "Enterprise Active Accounts"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "mappings": [
+    {
+      "snippet_id": "E1",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "Order promised in 2 days, delivered on day 6; warehouse dispatch delayed at WH-07"
+    },
+    {
+      "snippet_id": "E2",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "Enterprise customer (Meridian Retail Group) paused orders and moved volume to competitor after three of last five deliveries missed SLA in June; competitor launched 2-day express program on July 1"
+    },
+    {
+      "snippet_id": "E3",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "Enterprise customer (Kalinga Mart) cited June delivery misses on 4 POs and is evaluating competitor's express program; renewal at risk"
+    },
+    {
+      "snippet_id": "E5",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "WH-07 main conveyor failed June 25; running at ~60% throughput with 3-week spare part ETA and 14-picker staffing shortfall; ops lead explicitly stated expect SLA breaches on North-West lanes until resolved"
+    },
+    {
+      "snippet_id": "E4",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "Previous similar incident (2025-11 East region): sorter capacity constraint caused SLA to breach to 15%; temporary 3PL overflow capacity recovered SLA in 12 days"
+    },
+    {
+      "snippet_id": "E6",
+      "relevant": true,
+      "supports": [
+        "NEW"
+      ],
+      "key_fact": "Proven mitigation: temporary 3PL overflow capacity re-routing 30% of volume recovered SLA from 15% breach rate to baseline in 12 days; playbook recommends pre-approval when hub exceeds 12% breach rate"
+    }
+  ],
+  "new_hypothesis": {
+    "label": "WH-07 conveyor failure on June 25 reduced North-West sortation capacity to 60%, causing fulfillment SLA breaches that cascaded through July as the spare part remained on 3-week backorder; lack of temporary 3PL overflow capacity mitigation allowed the breach rate to persist rather than recover within 12 days as precedent demonstrates",
+    "keywords": [
+      "conveyor failure",
+      "sortation capacity",
+      "WH-07",
+      "North-West region",
+      "temporary 3PL overflow",
+      "June 25 incident",
+      "60% throughput"
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "mappings": [
+    {
+      "snippet_id": "E1",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Enterprise customer Meridian Retail Group explicitly states three of five deliveries missed SLA in June, triggering migration to competitor SwiftKart; customer demands written 3-day SLA commitment to return."
+    },
+    {
+      "snippet_id": "E3",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Enterprise customer Kalinga Mart cited June delivery misses on 4 POs in QBR; procurement evaluating SwiftKart express program; renewal flagged at risk."
+    },
+    {
+      "snippet_id": "E6",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "WH-07 conveyor failure on June 25 degraded North-West throughput to 60%; staffing 14 pickers short; ops note explicitly states 'Expect SLA breaches on North-West lanes' confirming mechanical root cause of SLA misses in June."
+    },
+    {
+      "snippet_id": "E2",
+      "relevant": false,
+      "supports": [],
+      "key_fact": "Consumer (non-enterprise) order late delivery; hypothesis H1 scoped to enterprise contract SLA commitments."
+    },
+    {
+      "snippet_id": "E4",
+      "relevant": false,
+      "supports": [],
+      "key_fact": "SMB customer churn risk; hypothesis H1 targets enterprise accounts specifically."
+    },
+    {
+      "snippet_id": "E5",
+      "relevant": false,
+      "supports": [],
+      "key_fact": "Historical East region incident from 2025-11; does not establish causation for 2026-07 North-West active account decline."
+    }
+  ],
+  "new_hypothesis": null
+}

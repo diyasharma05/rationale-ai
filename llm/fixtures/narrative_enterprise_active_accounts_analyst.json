@@ -1,0 +1,28 @@
+{
+  "headline": "North-West SLA failures from a warehouse breakdown are driving enterprise account losses.",
+  "body": "All the account decline is concentrated in North-West, where fulfilment SLA dropped sharply [E1]. A conveyor failure and picker shortage at WH-07 degraded throughput and produced the SLA misses [E6]. Two named enterprise accounts, Meridian Retail Group and Kalinga Mart, cite missed deliveries as their reason for evaluating a competitor [E3]. No contradicting driver was found, and the SLA-to-churn link is strongly corroborated across accounts.",
+  "actions": [
+    {
+      "driver": "SLA breaches from WH-07 mechanical failure",
+      "lever": "Executive save-desk + contractual SLA guarantee",
+      "action": "Offer Meridian and Kalinga a written 3-day SLA commitment",
+      "expected_impact": "Retain at-risk enterprise accounts before churn finalizes",
+      "owner": "Head of Enterprise Sales",
+      "confidence": "high",
+      "monitoring": "Track SLA % and account status weekly for both accounts"
+    },
+    {
+      "driver": "Customer trust loss post-SLA miss",
+      "lever": "Win-back onboarding credits",
+      "action": "Approve onboarding credits for at-risk North-West accounts",
+      "expected_impact": "Improve odds of reversing migration decisions",
+      "owner": "Head of Enterprise Sales",
+      "confidence": "medium",
+      "monitoring": "Monitor renewal/QBR outcomes over next 60 days"
+    }
+  ],
+  "what_could_change": "Confirmation that WH-07 conveyor and staffing are fixed, and SLA recovers, would validate the fix; a third account citing SLA misses would strengthen the case further.",
+  "caveats": "Impact is drawn from only two named accounts and one region, so scale beyond North-West is unconfirmed.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

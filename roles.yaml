@@ -1,0 +1,32 @@
+# Role-based security model (V0)
+# Three enforcement types, all applied in the query/engine layer (never just UI):
+#   - row-level:    `regions` restricts every SQL query via the {where} injection point
+#   - column-level: `mask_accounts` replaces enterprise account names with stable codes
+#                   in every table, evidence snippet, and LLM prompt
+#   - domain-level: per-KPI `access` lists in the semantic contract hide whole KPIs
+roles:
+  analyst:
+    label: "Data Analyst"
+    persona: analyst
+    regions: all
+    mask_accounts: false
+    narrative_style: >
+      Plain, precise language for a professional analyst. The UI already shows every
+      statistic — never recite z-scores or repeat panel numbers. Explain the causal
+      chain in rank order, name what is uncorroborated, and say what to verify next.
+  ceo:
+    label: "CEO"
+    persona: executive
+    regions: all
+    mask_accounts: true
+    narrative_style: >
+      Three to five sentences maximum. Lead with the rupee impact and the single most
+      important cause. One clear recommended action with an owner. No statistics jargon.
+  sales_head_north:
+    label: "Sales Head — North"
+    persona: department_head
+    regions: [North, North-West]
+    mask_accounts: false
+    narrative_style: >
+      Talk about their region and their teams only: what happened, why, and the
+      actions they own. Three or four plain sentences, no statistics vocabulary.

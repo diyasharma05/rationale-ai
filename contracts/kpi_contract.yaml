@@ -1,0 +1,244 @@
+# ---------------------------------------------------------------------------
+# Rationale.AI — KPI Semantic Contract (V0)
+# One entry per governed KPI: definition, calculation (SQL actually executed by
+# the engine via DuckDB), grain & refresh cadence of the source, materiality
+# thresholds, causal driver links, controllable levers with owners, lineage,
+# and role-based access. The engine reads this file — it is not documentation.
+# `{where}` is the row-level-security injection point (resolved per role).
+# ---------------------------------------------------------------------------
+
+sources:
+  sales_orders:
+    system: "OrderDB (OMS)"
+    grain: "transaction"
+    refresh: "daily 02:00 IST"
+  ops_fulfilment:
+    system: "LogiTrack (WMS)"
+    grain: "daily x region"
+    refresh: "daily 04:00 IST"
+  crm_events:
+    system: "RelateCRM (CRM + Marketing suite)"
+    grain: "event"
+    refresh: "weekly (Mondays)"
+  marketing_weekly:
+    system: "RelateCRM (CRM + Marketing suite)"
+    grain: "weekly x region"
+    refresh: "weekly (Mondays)"
+
+kpis:
+  revenue:
+    name: "Net Revenue (daily run-rate)"
+    unit: "INR/day"
+    definition: >
+      Average daily completed order value for the month. Defined as a run-rate
+      (sum / distinct order days) so months of 28-31 days are comparable —
+      calendar length would otherwise inject ±4% noise into anomaly detection.
+    owner: "Chief Revenue Officer"
+    source: sales_orders
+    sql: >
+      SELECT date_trunc('month', CAST(order_date AS DATE)) AS period,
+             SUM(order_value) / COUNT(DISTINCT order_date) AS value
+      FROM sales_orders WHERE 1=1 {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region, segment, category]
+    dim_sql: >
+      SELECT {dim} AS member, SUM(order_value) / COUNT(DISTINCT order_date) AS value
+      FROM sales_orders
+      WHERE date_trunc('month', CAST(order_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 3.0 }
+    ml_daily_check: true    # IsolationForest cross-check at daily grain
+    tags: [revenue, orders, sales, delivery, customer]
+    drivers:
+      - { kpi: fulfilment_sla, relation: direct,
+          note: "Late deliveries suppress repeat purchase and enterprise replenishment." }
+      - { kpi: complaint_rate, relation: inverse,
+          note: "Rising complaints lead churn and basket abandonment." }
+      - { kpi: enterprise_active_accounts, relation: direct,
+          note: "Enterprise accounts are ~40% of revenue; account loss hits immediately." }
+      - { kpi: marketing_conversion, relation: direct,
+          note: "Lower funnel conversion reduces new-customer order volume." }
+    levers:
+      - { lever: "Fulfilment capacity allocation (3PL overflow)", owner: "VP Operations", approval: "COO (spend > ₹5L/quarter)" }
+      - { lever: "Enterprise retention offers / SLA guarantees", owner: "Head of Enterprise Sales", approval: "CRO (contractual terms via Legal)" }
+      - { lever: "Delivery-promise messaging on storefront", owner: "Head of Product", approval: "none (within product remit)" }
+    lineage: "storefront checkout -> OMS orders -> nightly ELT -> analytics.sales_orders"
+    access: [analyst, ceo, sales_head_north]
+
+  aov:
+    name: "Average Order Value"
+    unit: "INR"
+    definition: "Net revenue divided by completed order count."
+    owner: "Chief Revenue Officer"
+    source: sales_orders
+    sql: >
+      SELECT date_trunc('month', CAST(order_date AS DATE)) AS period,
+             SUM(order_value) / COUNT(*) AS value
+      FROM sales_orders WHERE 1=1 {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region, segment]
+    dim_sql: >
+      SELECT {dim} AS member, SUM(order_value) / COUNT(*) AS value
+      FROM sales_orders
+      WHERE date_trunc('month', CAST(order_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.5, min_pct: 7.0 }   # basket metrics are volatile; higher bar
+    tags: [basket, pricing, mix, segment]
+    drivers:
+      - { kpi: enterprise_active_accounts, relation: direct,
+          note: "Enterprise mix lifts AOV; account loss dilutes it." }
+    levers:
+      - { lever: "Bundling / minimum-order incentives", owner: "Head of Product", approval: "CRO (margin impact)" }
+    lineage: "storefront checkout -> OMS orders -> nightly ELT -> analytics.sales_orders"
+    access: [analyst, ceo, sales_head_north]
+
+  fulfilment_sla:
+    name: "Fulfilment SLA %"
+    unit: "%"
+    definition: "Share of shipments delivered within the promised window (1 - breach rate)."
+    owner: "VP Operations"
+    source: ops_fulfilment
+    sql: >
+      SELECT date_trunc('month', CAST(ship_date AS DATE)) AS period,
+             100.0 * (1 - SUM(sla_breaches)::DOUBLE / NULLIF(SUM(shipments),0)) AS value
+      FROM ops_fulfilment WHERE 1=1 {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region]
+    dim_sql: >
+      SELECT {dim} AS member,
+             100.0 * (1 - SUM(sla_breaches)::DOUBLE / NULLIF(SUM(shipments),0)) AS value
+      FROM ops_fulfilment
+      WHERE date_trunc('month', CAST(ship_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 2.0 }
+    tags: [delivery, sla, warehouse, logistics, backlog, dispatch]
+    drivers: []
+    levers:
+      - { lever: "Temporary 3PL overflow capacity", owner: "VP Operations", approval: "COO (pre-approved playbook per Nov-2025 postmortem)" }
+      - { lever: "Picker staffing plan", owner: "NW Ops Lead", approval: "VP Operations" }
+    lineage: "WMS shipment scans -> LogiTrack daily extract -> analytics.ops_fulfilment"
+    access: [analyst, ceo, sales_head_north]
+
+  complaint_rate:
+    name: "Complaint Rate"
+    unit: "per 1000 orders"
+    definition: "Support complaints per 1,000 completed orders."
+    owner: "Head of Customer Service"
+    source: crm_events
+    sql: >
+      WITH c AS (
+        SELECT date_trunc('month', CAST(event_date AS DATE)) AS period, COUNT(*) AS n
+        FROM crm_events WHERE event_type = 'complaint' {where}
+        GROUP BY 1),
+      o AS (
+        SELECT date_trunc('month', CAST(order_date AS DATE)) AS period, COUNT(*) AS n
+        FROM sales_orders WHERE 1=1 {where}
+        GROUP BY 1)
+      SELECT o.period, 1000.0 * COALESCE(c.n,0) / o.n AS value
+      FROM o LEFT JOIN c USING (period) ORDER BY 1
+    dimensions: [region]
+    dim_sql: >
+      SELECT {dim} AS member, COUNT(*)::DOUBLE AS value
+      FROM crm_events
+      WHERE event_type = 'complaint'
+        AND date_trunc('month', CAST(event_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 8.0 }
+    good_direction: down            # falling complaints are good news
+    dim_unit: "complaints"          # dim_sql returns raw counts, not the rate
+    tags: [complaints, service, delivery, customer, late]
+    drivers:
+      - { kpi: fulfilment_sla, relation: inverse,
+          note: "SLA breaches are the dominant complaint reason." }
+    levers:
+      - { lever: "Proactive delay notifications + goodwill credits", owner: "Head of Customer Service", approval: "CFO (credit budget)" }
+    lineage: "support tickets -> RelateCRM events -> weekly sync -> analytics.crm_events"
+    access: [analyst, ceo, sales_head_north]
+
+  enterprise_active_accounts:
+    name: "Enterprise Active Accounts"
+    unit: "accounts"
+    definition: "Distinct enterprise accounts that placed at least one order in the month."
+    owner: "Head of Enterprise Sales"
+    source: sales_orders
+    sql: >
+      SELECT date_trunc('month', CAST(order_date AS DATE)) AS period,
+             COUNT(DISTINCT account) AS value
+      FROM sales_orders WHERE segment = 'enterprise' {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region]
+    dim_sql: >
+      SELECT {dim} AS member, COUNT(DISTINCT account)::DOUBLE AS value
+      FROM sales_orders
+      WHERE segment = 'enterprise'
+        AND date_trunc('month', CAST(order_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 3.0 }
+    tags: [enterprise, accounts, churn, retention, competitor]
+    drivers:
+      - { kpi: fulfilment_sla, relation: direct,
+          note: "Enterprise contracts carry SLA commitments; misses trigger churn." }
+    levers:
+      - { lever: "Executive save-desk + contractual SLA guarantee", owner: "Head of Enterprise Sales", approval: "CRO + Legal" }
+      - { lever: "Win-back onboarding credits", owner: "Head of Enterprise Sales", approval: "CFO (credit budget)" }
+    lineage: "OMS orders (account field) -> nightly ELT -> analytics.sales_orders; churn events in RelateCRM"
+    access: [analyst, ceo]          # domain-restricted: not visible to regional sales heads
+
+  marketing_conversion:
+    name: "Marketing Conversion Rate"
+    unit: "%"
+    definition: "Attributed conversions divided by tracked sessions (weekly source, monthly rollup)."
+    owner: "Head of Growth Marketing"
+    source: marketing_weekly
+    sql: >
+      SELECT date_trunc('month', CAST(week_start AS DATE)) AS period,
+             100.0 * SUM(conversions)::DOUBLE / NULLIF(SUM(sessions),0) AS value
+      FROM marketing_weekly WHERE 1=1 {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region]
+    dim_sql: >
+      SELECT {dim} AS member,
+             100.0 * SUM(conversions)::DOUBLE / NULLIF(SUM(sessions),0) AS value
+      FROM marketing_weekly
+      WHERE date_trunc('month', CAST(week_start AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 5.0 }
+    tags: [marketing, funnel, conversion, campaign, tracking]
+    drivers:
+      - { metric: marketing_spend, label: "Marketing Spend", relation: direct,
+          metric_sql: "SELECT date_trunc('month', CAST(week_start AS DATE)) AS period, SUM(spend) AS value FROM marketing_weekly WHERE 1=1 {where} GROUP BY 1 ORDER BY 1",
+          note: "Spend cuts normally precede conversion drops." }
+      - { metric: sessions, label: "Tracked Sessions", relation: direct,
+          metric_sql: "SELECT date_trunc('month', CAST(week_start AS DATE)) AS period, SUM(sessions) AS value FROM marketing_weekly WHERE 1=1 {where} GROUP BY 1 ORDER BY 1",
+          note: "Traffic loss would explain fewer conversions." }
+    levers:
+      - { lever: "Campaign budget reallocation", owner: "Head of Growth Marketing", approval: "CMO" }
+    lineage: "ad platforms + web analytics -> RelateCRM marketing tables -> weekly sync"
+    access: [analyst, ceo]          # domain-restricted: not visible to regional sales heads
+
+  home_decor_revenue:
+    name: "Home-Decor Revenue (new category)"
+    unit: "INR/day"
+    definition: "Daily run-rate revenue for the home-decor category, launched 2026-07-15."
+    owner: "Category Manager — Home"
+    source: sales_orders
+    sql: >
+      SELECT date_trunc('month', CAST(order_date AS DATE)) AS period,
+             SUM(order_value) / COUNT(DISTINCT order_date) AS value
+      FROM sales_orders WHERE category = 'home-decor' {where}
+      GROUP BY 1 ORDER BY 1
+    dimensions: [region]
+    dim_sql: >
+      SELECT {dim} AS member, SUM(order_value) AS value
+      FROM sales_orders
+      WHERE category = 'home-decor'
+        AND date_trunc('month', CAST(order_date AS DATE)) = DATE '{period}' {where}
+      GROUP BY 1
+    materiality: { min_abs_z: 2.0, min_pct: 10.0 }
+    min_history: 6                  # months required before causal claims
+    tags: [category, launch, home-decor]
+    drivers: []
+    levers:
+      - { lever: "Launch marketing pacing", owner: "Category Manager — Home", approval: "CMO" }
+    lineage: "storefront checkout -> OMS orders -> nightly ELT -> analytics.sales_orders"
+    access: [analyst, ceo]

@@ -1,0 +1,19 @@
+{
+  "headline": "North-West SLA breakdown, driven by a warehouse outage, is fueling the complaint spike.",
+  "body": "North-West alone added 36 extra complaints, more than fully accounting for the rise; other regions actually improved [E1]. The root cause is a conveyor failure and picker shortfall at WH-07 on June 25, which cut sortation throughput and pushed deliveries past promised windows [E6]. Enterprise and SMB customers cite these late deliveries directly, with two accounts flagging churn or renewal risk [E2]. Operations independently confirms the backlog-to-complaint link, corroborating the SLA breach as the driver rather than a coincidental pattern [E4].",
+  "actions": [
+    {
+      "driver": "SLA breaches from WH-07 outage",
+      "lever": "Proactive delay notifications + goodwill credits",
+      "action": "Notify affected North-West customers and issue goodwill credits now",
+      "expected_impact": "Reduce complaint escalation and churn risk while backlog clears",
+      "owner": "Head of Customer Service",
+      "confidence": "high",
+      "monitoring": "Track North-West complaint rate and WH-07 throughput weekly"
+    }
+  ],
+  "what_could_change": "If WH-07 throughput recovers and North-West complaints don't fall accordingly, look for a second cause.",
+  "caveats": "Impact figures are in complaint counts, not rupees, and no rupee estimate was computed.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

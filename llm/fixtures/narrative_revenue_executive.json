@@ -1,0 +1,19 @@
+{
+  "headline": "Revenue is down \u20b926 lakh a month, driven mainly by North-West delivery failures.",
+  "body": "Warehouse WH-07 backlogs pushed late deliveries that made a key enterprise account halt orders entirely [E1]. Rising complaints and a shrinking enterprise base compounded the damage as customers cited a competitor's faster delivery [E3]. North-West alone accounts for most of the total revenue drop.",
+  "actions": [
+    {
+      "driver": "Fulfilment delays at WH-07",
+      "lever": "Fulfilment capacity allocation (3PL overflow)",
+      "action": "Add 3PL overflow capacity to clear WH-07 backlog",
+      "expected_impact": "Restore SLA and stop enterprise account losses",
+      "owner": "VP Operations",
+      "confidence": "high",
+      "monitoring": "Track daily SLA % and WH-07 backlog size"
+    }
+  ],
+  "what_could_change": "If SLA recovers and enterprise accounts resume orders within weeks, this confirms delivery delays as the cause.",
+  "caveats": "Marketing conversion is also weak but has no direct evidence linking it to the drop yet.",
+  "clarifying_question": null,
+  "escalation_brief": "North-West enterprise accounts are actively churning to a competitor's faster delivery service; immediate operations fix needed to prevent further contract losses."
+}

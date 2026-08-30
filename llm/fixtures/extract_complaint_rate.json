@@ -1,0 +1,53 @@
+{
+  "mappings": [
+    {
+      "snippet_id": "E1",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Customer complaint about late delivery (promised 2 days, delivered day 6) directly tied to SLA breach; customer requested refund due to repeated late deliveries."
+    },
+    {
+      "snippet_id": "E2",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Enterprise customer explicitly cites three of five deliveries missing SLA in June as reason for order pause and churn to competitor; links SLA breaches directly to complaint escalation."
+    },
+    {
+      "snippet_id": "E3",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "SMB repeat complaint for 4-day late delivery; customer explicitly references competitor's 2-day express as comparison, indicating SLA miss triggered complaint."
+    },
+    {
+      "snippet_id": "E4",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Operations team confirms complaint volume climbing with late delivery as primary reason; WH-07 backlog of 1,900 orders directly correlates to SLA breach complaints."
+    },
+    {
+      "snippet_id": "E5",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "Enterprise customer QBR failure attributed to June delivery misses on 4 POs; SLA failures linked to renewal risk and complaint escalation."
+    },
+    {
+      "snippet_id": "E6",
+      "relevant": true,
+      "supports": [
+        "H1"
+      ],
+      "key_fact": "WH-07 conveyor failure on June 25 reduced sortation to 60% throughput with staffing shortfall of 14 pickers; operations explicitly forecasted SLA breaches on North-West lanes as direct consequence."
+    }
+  ],
+  "new_hypothesis": null
+}

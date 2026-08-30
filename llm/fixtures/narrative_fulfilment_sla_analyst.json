@@ -1,0 +1,28 @@
+{
+  "headline": "North-West conveyor failure is driving nearly the entire SLA drop.",
+  "body": "The WH-07 conveyor failure on June 25 cut sortation capacity to 60%, and the spare part is still three weeks out [E5]. That single region accounts for essentially all of the SLA decline, while other regions are flat or improving. A prior East region incident with the same failure mode recovered in 12 days once overflow capacity was added, but that mitigation wasn't deployed here [E4]. A competing SLA-linked hypothesis, SwiftKart's new express launch, is plausible but unconfirmed and can't explain the July persistence pattern on its own.",
+  "actions": [
+    {
+      "driver": "WH-07 conveyor failure / capacity shortfall",
+      "lever": "Temporary 3PL overflow capacity",
+      "action": "Activate pre-approved 3PL overflow for North-West lanes now",
+      "expected_impact": "Recover SLA to baseline in about 12 days, per precedent",
+      "owner": "VP Operations",
+      "confidence": "high",
+      "monitoring": "Track North-West SLA daily until back above 90%"
+    },
+    {
+      "driver": "Picker staffing shortfall at WH-07",
+      "lever": "Picker staffing plan",
+      "action": "Backfill 14-picker shortfall with temporary labor",
+      "expected_impact": "Restores throughput while conveyor part is on backorder",
+      "owner": "NW Ops Lead",
+      "confidence": "medium",
+      "monitoring": "Monitor daily throughput and picker headcount at WH-07"
+    }
+  ],
+  "what_could_change": "Confirmation that conveyor part arrival or overflow rollout timing shifts, or evidence SwiftKart's launch is pulling volume independent of the outage, would revise this.",
+  "caveats": "The SwiftKart express-launch hypothesis is uncorroborated by internal data and should not be treated as a confirmed driver yet.",
+  "clarifying_question": "Can we get confirmed ETA for the conveyor spare part and current 3PL overflow rollout status?",
+  "escalation_brief": null
+}

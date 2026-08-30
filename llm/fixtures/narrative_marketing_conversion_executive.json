@@ -1,0 +1,9 @@
+{
+  "headline": "Conversion dropped everywhere in July, but we can't yet pin down why.",
+  "body": "All four regions fell by nearly the same amount, so this isn't a one-region problem. Marketing spend and website traffic don't explain the drop. We haven't yet confirmed if the suspected warehouse delivery issue is the actual cause.",
+  "actions": [],
+  "what_could_change": "Direct evidence linking the North-West warehouse delays to customer conversion, or new data on customer complaints and competitor activity, would clarify the cause.",
+  "caveats": "This is a broad, uniform decline with no confirmed root cause yet; acting without more evidence risks fixing the wrong problem.",
+  "clarifying_question": "Do we have customer complaint or churn data tied to delivery delays that coincides with the conversion drop?",
+  "escalation_brief": "Conversion rate fell sharply and uniformly across all regions in July with no confirmed cause; a suspected but unverified link to a North-West warehouse failure and enterprise customer defection needs urgent validation before any marketing spend decisions are made."
+}

@@ -1,0 +1,37 @@
+{
+  "headline": "North-West SLA failures triggered enterprise churn, driving most of the revenue drop.",
+  "body": "Fulfilment SLA in North-West degraded sharply, and WH-07 backlog is the operational root cause [E4]. Two enterprise accounts paused or threatened to pause orders after repeated late deliveries, directly cutting revenue [E1]. Enterprise account count fell in parallel, consistent with the SLA-driven churn story [E5]. Complaint rate rose too, but its comovement is weaker and looks more like a downstream symptom than an independent cause [E3].",
+  "actions": [
+    {
+      "driver": "Fulfilment SLA breaches at WH-07",
+      "lever": "Fulfilment capacity allocation (3PL overflow)",
+      "action": "Add 3PL overflow capacity to clear WH-07 backlog",
+      "expected_impact": "Restore SLA and stop further account attrition",
+      "owner": "VP Operations",
+      "confidence": "high",
+      "monitoring": "Daily SLA % and WH-07 backlog age"
+    },
+    {
+      "driver": "Enterprise account churn",
+      "lever": "Enterprise retention offers / SLA guarantees",
+      "action": "Offer SLA guarantee to Meridian and Kalinga accounts",
+      "expected_impact": "Prevent further enterprise revenue loss",
+      "owner": "Head of Enterprise Sales",
+      "confidence": "medium",
+      "monitoring": "Enterprise active account count weekly"
+    },
+    {
+      "driver": "Customer-facing delivery expectations",
+      "lever": "Delivery-promise messaging on storefront",
+      "action": "Adjust delivery promise messaging until SLA recovers",
+      "expected_impact": "Reduce complaint volume from mismatched expectations",
+      "owner": "Head of Product",
+      "confidence": "low",
+      "monitoring": "Complaint rate trend"
+    }
+  ],
+  "what_could_change": "Confirmation that WH-07 backlog is clearing and enterprise accounts resume orders would validate the fix; renewed SLA misses would overturn it.",
+  "caveats": "Marketing conversion drop is flagged but has no supporting evidence snippets, so its role is unverified.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

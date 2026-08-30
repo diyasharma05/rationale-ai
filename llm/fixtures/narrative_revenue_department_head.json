@@ -1,0 +1,28 @@
+{
+  "headline": "North-West revenue dropped mainly because late deliveries drove away our biggest accounts.",
+  "body": "Our warehouse delays pushed enterprise customers like Meridian and Kalinga to pause orders and look at competitors [E1]. That single region accounts for most of the region's revenue loss this month. Rising complaints and slower conversion added smaller hits on top, but late shipments are the real story [E4].",
+  "actions": [
+    {
+      "driver": "Fulfilment delays",
+      "lever": "Fulfilment capacity allocation (3PL overflow)",
+      "action": "Add overflow capacity at WH-07 immediately",
+      "expected_impact": "Clear backlog and restore SLA within two weeks",
+      "owner": "VP Operations",
+      "confidence": "high",
+      "monitoring": "Track daily SLA % and backlog count at WH-07"
+    },
+    {
+      "driver": "Enterprise account loss",
+      "lever": "Enterprise retention offers / SLA guarantees",
+      "action": "Offer SLA guarantee to at-risk enterprise accounts",
+      "expected_impact": "Retain Meridian and Kalinga renewal volume",
+      "owner": "Head of Enterprise Sales",
+      "confidence": "medium",
+      "monitoring": "Watch enterprise active account count weekly"
+    }
+  ],
+  "what_could_change": "If WH-07 backlog clears and SLA recovers, we'd expect enterprise orders to bounce back within weeks.",
+  "caveats": "This is based on this month's data only; if new accounts churn for other reasons, the story could shift.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}
