@@ -107,8 +107,43 @@ C = _PALETTES[_BASE]
 # regardless of when Streamlit's own chrome catches up.
 _SHELL = {"dark": {"page": "#0d0d0d", "side": "#171320"},
           "light": {"page": "#ffffff", "side": "#f5f0fa"}}[_BASE]
+# Typography : Inter for UI text (the workhorse of real product dashboards —
+# Linear, Vercel, Notion), JetBrains Mono for code/SQL. Tight tracking on
+# headings, relaxed line-height on body, and a deliberate type scale instead
+# of Streamlit's defaults.
+FONT_BODY = "'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif"
+FONT_MONO = "'JetBrains Mono', 'Cascadia Code', Consolas, monospace"
+
 st.markdown(f"""<style>
-  .stApp {{ background-color: {_SHELL['page']}; color: {C['ink']}; }}
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  html, body, .stApp, .stApp * {{ font-family: {FONT_BODY}; }}
+  .stApp {{ background-color: {_SHELL['page']}; color: {C['ink']};
+            font-size: 15px; letter-spacing: -0.006em; }}
+  .stApp p, .stApp li {{ font-size: 0.94rem; line-height: 1.62; }}
+
+  /* heading scale : tighter tracking, decisive weights */
+  .stApp h1 {{ font-size: 1.72rem; font-weight: 750; letter-spacing: -0.028em;
+               line-height: 1.15; }}
+  .stApp h2 {{ font-size: 1.28rem; font-weight: 700; letter-spacing: -0.022em; }}
+  .stApp h3 {{ font-size: 1.08rem; font-weight: 650; letter-spacing: -0.016em; }}
+  .stApp h4 {{ font-size: 1.0rem;  font-weight: 650; letter-spacing: -0.012em; }}
+
+  /* code and SQL in a real mono face, slightly smaller than body */
+  .stApp code, .stApp pre, .stApp kbd {{ font-family: {FONT_MONO};
+               font-size: 0.82em; letter-spacing: 0; }}
+
+  /* captions : smaller, calmer */
+  [data-testid="stCaptionContainer"] {{ font-size: 0.8rem !important;
+               line-height: 1.5 !important; letter-spacing: -0.003em; }}
+
+  /* widget labels and buttons */
+  .stApp label {{ font-size: 0.84rem; font-weight: 500; }}
+  .stApp button p {{ font-weight: 600; letter-spacing: -0.006em; }}
+
+  /* metric widgets */
+  [data-testid="stMetricValue"] {{ font-weight: 700; letter-spacing: -0.02em; }}
+
   [data-testid="stHeader"] {{ background-color: {_SHELL['page']}; }}
   [data-testid="stSidebar"] {{ background-color: {_SHELL['side']}; }}
   [data-testid="stSidebar"] * {{ color: {C['ink2']}; }}
@@ -186,8 +221,8 @@ def base_layout(fig, height):
     fig.update_layout(
         height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=8, r=8, t=8, b=8), showlegend=False,
-        font=dict(color=C["ink2"], size=11),
-        hoverlabel=dict(font_size=12),
+        font=dict(color=C["ink2"], size=11, family="Inter, 'Segoe UI', sans-serif"),
+        hoverlabel=dict(font_size=12, font_family="Inter, 'Segoe UI', sans-serif"),
     )
     fig.update_xaxes(showgrid=False, linecolor=C["axis"], tickcolor=C["axis"])
     fig.update_yaxes(gridcolor=C["grid"], zerolinecolor=C["axis"], linecolor=C["axis"])
@@ -265,9 +300,10 @@ def stat_tile(label, value, delta_txt=None, delta_color=None, chip=None, sub=Non
     """Redash-style metric counter: label, hero number, delta pill, context line."""
     accent = accent or C["border"]
     bits = [
-        f"<div style='font-size:0.72rem;color:{C['muted']};text-transform:uppercase;"
-        f"letter-spacing:.06em;margin-bottom:2px'>{label}</div>",
-        f"<div style='font-size:1.65rem;font-weight:750;color:{C['ink']};line-height:1.15'>{value}</div>",
+        f"<div style='font-size:0.68rem;font-weight:600;color:{C['muted']};"
+        f"text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px'>{label}</div>",
+        f"<div style='font-size:1.6rem;font-weight:700;letter-spacing:-0.025em;"
+        f"font-variant-numeric:tabular-nums;color:{C['ink']};line-height:1.15'>{value}</div>",
     ]
     row = []
     if delta_txt:
@@ -487,9 +523,9 @@ def severity_order(scan):
 
 def section_label(text):
     """Grafana-style row label: small, uppercase, muted."""
-    st.markdown(f"<div style='font-size:0.78rem;color:{C['muted']};text-transform:uppercase;"
-                f"letter-spacing:.08em;margin:16px 0 6px'>{text}</div>",
-                unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:0.72rem;font-weight:600;color:{C['muted']};"
+                f"text-transform:uppercase;letter-spacing:.09em;margin:18px 0 7px'>"
+                f"{text}</div>", unsafe_allow_html=True)
 
 
 # how each analytical method is badged throughout the app
@@ -599,7 +635,7 @@ if "investigations" not in st.session_state:
 
 with st.sidebar:
     st.markdown(
-        f"<div style='font-size:2.35rem;font-weight:800;letter-spacing:-0.02em;"
+        f"<div style='font-size:2.15rem;font-weight:800;letter-spacing:-0.04em;"
         f"line-height:1.1;padding:4px 0 2px;color:{C['ink']}'>"
         f"Rationale<span style='color:{C['series']}'>.AI</span></div>",
         unsafe_allow_html=True)
@@ -798,8 +834,10 @@ if nav == "Dashboard":
                     dcol = C["critical_text"] if an["material"] else C["ink2"]
                     delta_html = (f"<span style='font-size:0.95rem;font-weight:700;color:{dcol};"
                                   f"margin-left:8px'>{arrow} {abs(an['pct_vs_recent']):.1f}%</span>")
-                st.markdown(f"<div style='font-size:1.6rem;font-weight:750;color:{C['ink']};"
-                            f"line-height:1.2'>{fmt(an['current'], cfg['unit'])}{delta_html}</div>",
+                st.markdown(f"<div style='font-size:1.55rem;font-weight:700;"
+                            f"letter-spacing:-0.025em;font-variant-numeric:tabular-nums;"
+                            f"color:{C['ink']};line-height:1.2'>"
+                            f"{fmt(an['current'], cfg['unit'])}{delta_html}</div>",
                             unsafe_allow_html=True)
                 imp = monthly_impact(an, cfg["unit"])
                 st.caption(f"≈ {fmt(imp, 'INR')} /month vs baseline" if an["material"] and imp is not None
