@@ -152,6 +152,14 @@ is literally why it was flagged. Dotted line = 3-month OLS forecast. Every metri
 **details** popover with a plain-English read, its normal range, source and freshness.
 Zero LLM tokens are spent on this page.
 
+**Live Feed** — replays the real event stream in accelerated time (▶ Play, adjustable
+speed). Orders, shipments, SLA breaches, complaints and churn land day by day in a live
+ticker; three **dimensional monitors** evaluate a rolling 7-day window against each
+region's own 60-day baseline, using the same z-rule as the batch signal gate. Watch the
+WH-07 incident get caught as it happens: **Fulfilment SLA breaches in North-West around
+28–30 June**, complaints follow around **12 July** — cause first, symptom after. When a
+monitor breaches, an alert fires and one click hands off into a full investigation.
+
 **Data** — a Redash-style explorer over the governed sources: source picker, grain,
 time-range slider, live volume chart, row counts and **query time in milliseconds**, the
 **SQL that just ran** (with the RBAC clause visible), and the latest raw records with
@@ -240,6 +248,29 @@ DEMO_SCRIPT.md               judge walkthrough
 ```
 
 ---
+
+## Optional : Prometheus + Grafana observability
+
+The engine exposes its **own operational metrics** (not business KPIs — those are
+analytical, and belong in the app) at `http://localhost:9108/metrics`: investigations
+run, outcomes, gate pass/fail, detector votes, confidence distribution, deterministic
+operations by kind, LLM calls, tokens, cost and latency.
+
+```bash
+cd ops
+docker compose up -d
+# Grafana    http://localhost:3000   (anonymous; dashboard pre-provisioned)
+# Prometheus http://localhost:9090
+```
+
+The pre-built **"Rationale.AI : Engine Operations"** dashboard shows throughput and
+outcome mix, p50/p95 investigation latency, LLM latency by model, spend, and a panel
+comparing **deterministic operations against LLM calls** — the core design claim,
+measured live rather than asserted.
+
+This is entirely optional: the app never depends on it, and runs identically if the
+stack (or `prometheus_client`) is absent. Disable the endpoint with
+`RATIONALE_METRICS=0`, or move it with `RATIONALE_METRICS_PORT`.
 
 ## Verify the install
 

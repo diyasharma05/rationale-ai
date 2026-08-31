@@ -126,4 +126,18 @@ body = all_text(at5)
 assert "May 2026" in body, "header did not follow the selected period"
 print("   ok — dashboard recomputed for May 2026")
 
+print("11) live feed page renders and advances...")
+at6 = new_app()
+at6.run()
+at6.radio[0].set_value("Live Feed").run()
+assert not at6.exception, at6.exception
+body = all_text(at6)
+assert "Stream clock" in body and "Live monitors" in body.lower() or "Events ingested" in body, \
+    "live feed panels missing"
+at6.button(key="play_btn").click().run()          # start playing
+assert not at6.exception, at6.exception
+at6.button(key="reset_stream").click().run()      # and reset cleanly
+assert not at6.exception, at6.exception
+print("   ok — stream clock, monitors, ticker, play/reset")
+
 print("\nALL UI CHECKS PASSED (mock mode)")

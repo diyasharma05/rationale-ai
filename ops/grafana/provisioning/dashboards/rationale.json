@@ -1,0 +1,132 @@
+{
+  "uid": "rationale-engine",
+  "title": "Rationale.AI : Engine Operations",
+  "tags": ["rationale", "engine"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "type": "row", "title": "Throughput & outcomes",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat", "title": "Investigations run",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "targets": [
+        { "expr": "sum(rationale_investigations_total)", "legendFormat": "total",
+          "refId": "A" }
+      ]
+    },
+    {
+      "type": "piechart", "title": "Outcomes (actions vs abstain)",
+      "gridPos": { "h": 5, "w": 6, "x": 4, "y": 1 },
+      "options": { "legend": { "displayMode": "list", "placement": "right" } },
+      "targets": [
+        { "expr": "sum by (outcome) (rationale_investigations_total)",
+          "legendFormat": "{{outcome}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat", "title": "Estimated LLM spend (USD)",
+      "gridPos": { "h": 5, "w": 4, "x": 10, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
+      "targets": [
+        { "expr": "sum(rationale_llm_cost_usd_total)", "legendFormat": "spend",
+          "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat", "title": "KPIs flagged / scanned",
+      "gridPos": { "h": 5, "w": 5, "x": 14, "y": 1 },
+      "targets": [
+        { "expr": "sum(rationale_kpis_flagged)", "legendFormat": "flagged", "refId": "A" },
+        { "expr": "sum(rationale_kpis_scanned)", "legendFormat": "scanned", "refId": "B" }
+      ]
+    },
+    {
+      "type": "stat", "title": "LLM calls",
+      "gridPos": { "h": 5, "w": 5, "x": 19, "y": 1 },
+      "targets": [
+        { "expr": "sum(rationale_llm_calls_total)", "legendFormat": "calls", "refId": "A" }
+      ]
+    },
+    {
+      "type": "row", "title": "Latency",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }
+    },
+    {
+      "type": "timeseries", "title": "Investigation wall time (p50 / p95)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "LLM call latency by model (p95)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(rationale_llm_latency_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "{{model}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "row", "title": "Engine internals",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 }
+    },
+    {
+      "type": "barchart", "title": "Deterministic work vs LLM calls",
+      "description": "SQL / statistics / ML / retrieval operations performed, next to the number of LLM calls. The core design claim, measured.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "sum by (kind) (rationale_engine_operations_total)",
+          "legendFormat": "{{kind}}", "refId": "A" },
+        { "expr": "sum(rationale_llm_calls_total)", "legendFormat": "llm calls",
+          "refId": "B" }
+      ]
+    },
+    {
+      "type": "barchart", "title": "Detector votes",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        { "expr": "sum by (detector, flag) (rationale_detector_flags_total)",
+          "legendFormat": "{{detector}} · {{flag}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Confidence distribution (p50 / p90)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "fieldConfig": { "defaults": { "max": 1, "min": 0 } },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
+          "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.9, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
+          "legendFormat": "p90", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Tokens consumed",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "sum by (direction) (rate(rationale_llm_tokens_total[5m]) * 300)",
+          "legendFormat": "{{direction}}", "refId": "A" }
+      ]
+    },
+    {
+      "type": "barchart", "title": "Gate outcomes",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        { "expr": "sum by (gate, result) (rationale_gate_outcomes_total)",
+          "legendFormat": "{{gate}} · {{result}}", "refId": "A" }
+      ]
+    }
+  ]
+}

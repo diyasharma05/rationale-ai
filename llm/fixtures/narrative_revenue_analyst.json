@@ -1,37 +1,37 @@
 {
-  "headline": "North-West SLA failures triggered enterprise churn, driving most of the revenue drop.",
-  "body": "Fulfilment SLA in North-West degraded sharply, and WH-07 backlog is the operational root cause [E4]. Two enterprise accounts paused or threatened to pause orders after repeated late deliveries, directly cutting revenue [E1]. Enterprise account count fell in parallel, consistent with the SLA-driven churn story [E5]. Complaint rate rose too, but its comovement is weaker and looks more like a downstream symptom than an independent cause [E3].",
+  "headline": "North-West revenue drop traces to warehouse delays costing enterprise accounts.",
+  "body": "Fulfilment SLA failures at WH-07 caused three of five deliveries to miss target for key enterprise accounts, prompting one to pause orders and another to threaten non-renewal [E1]. This directly shows up as enterprise active-account losses, which carry outsized revenue weight [E5]. Complaint rates rose in parallel, with SMB customers citing a competitor's faster delivery as an alternative [E3]. Marketing conversion also softened but has no supporting evidence tying it to this event, so treat it as a secondary, uncorroborated factor.",
   "actions": [
     {
       "driver": "Fulfilment SLA breaches at WH-07",
       "lever": "Fulfilment capacity allocation (3PL overflow)",
       "action": "Add 3PL overflow capacity to clear WH-07 backlog",
-      "expected_impact": "Restore SLA and stop further account attrition",
+      "expected_impact": "Restore SLA and reduce further account attrition",
       "owner": "VP Operations",
       "confidence": "high",
-      "monitoring": "Daily SLA % and WH-07 backlog age"
+      "monitoring": "Daily SLA % and WH-07 backlog count"
     },
     {
-      "driver": "Enterprise account churn",
+      "driver": "Enterprise account attrition",
       "lever": "Enterprise retention offers / SLA guarantees",
-      "action": "Offer SLA guarantee to Meridian and Kalinga accounts",
-      "expected_impact": "Prevent further enterprise revenue loss",
+      "action": "Offer SLA guarantees to at-risk enterprise accounts",
+      "expected_impact": "Retain Meridian and Kalinga volume",
       "owner": "Head of Enterprise Sales",
       "confidence": "medium",
       "monitoring": "Enterprise active account count weekly"
     },
     {
-      "driver": "Customer-facing delivery expectations",
+      "driver": "Rising complaint rate",
       "lever": "Delivery-promise messaging on storefront",
-      "action": "Adjust delivery promise messaging until SLA recovers",
-      "expected_impact": "Reduce complaint volume from mismatched expectations",
+      "action": "Adjust delivery-promise messaging to match real capacity",
+      "expected_impact": "Lower complaint and refund volume",
       "owner": "Head of Product",
-      "confidence": "low",
+      "confidence": "medium",
       "monitoring": "Complaint rate trend"
     }
   ],
-  "what_could_change": "Confirmation that WH-07 backlog is clearing and enterprise accounts resume orders would validate the fix; renewed SLA misses would overturn it.",
-  "caveats": "Marketing conversion drop is flagged but has no supporting evidence snippets, so its role is unverified.",
+  "what_could_change": "Confirmation that marketing conversion decline is unrelated, or new SLA data showing WH-07 recovery, would refine this view.",
+  "caveats": "Marketing conversion driver lacks direct evidence and may be coincidental rather than causal.",
   "clarifying_question": null,
   "escalation_brief": null
 }

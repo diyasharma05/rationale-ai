@@ -7,7 +7,7 @@
         "H1",
         "H3"
       ],
-      "key_fact": "Enterprise account (Meridian Retail Group) explicitly paused replenishment orders and migrated volume to competitor due to three of five deliveries missing SLA in June; account loss is direct revenue impact"
+      "key_fact": "Enterprise account (Meridian Retail Group) explicitly paused replenishment orders and migrated volume to competitor due to three of five deliveries missing SLA in June; account loss is direct revenue impact."
     },
     {
       "snippet_id": "E2",
@@ -15,7 +15,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "Consumer order delivered day 6 vs promised day 2; warehouse dispatch delay at WH-07 caused SLA breach; second late delivery in month triggered refund request"
+      "key_fact": "Consumer order promised in 2 days delivered on day 6 due to warehouse dispatch delay at WH-07; second late delivery that month triggered refund request, demonstrating SLA breach mechanism."
     },
     {
       "snippet_id": "E3",
@@ -24,7 +24,7 @@
         "H1",
         "H2"
       ],
-      "key_fact": "SMB repeat customer churn risk flagged after 4-day late delivery; customer explicitly compared to competitor's 2-day express service, linking SLA failure to churn"
+      "key_fact": "SMB repeat customer complaint about 4-day late delivery explicitly cited competitor's 2-day express as alternative; flagged churn risk directly linked to SLA failure."
     },
     {
       "snippet_id": "E4",
@@ -32,7 +32,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "WH-07 backlog of 1,900 orders with oldest 5 days old; manual sortation at 60% capacity; ops confirms complaint volume climbing primarily due to late deliveries"
+      "key_fact": "WH-07 backlog of 1,900 orders with oldest at 5 days and manual sortation at 60% capacity; CS reports climbing complaint volume driven by late deliveries, establishing operational root cause."
     },
     {
       "snippet_id": "E5",
@@ -41,13 +41,13 @@
         "H1",
         "H3"
       ],
-      "key_fact": "Enterprise account (Kalinga Mart) renewal at risk after four PO delivery misses in June; procurement actively evaluating competitor's express program"
+      "key_fact": "Enterprise account (Kalinga Mart) renewal at risk after QBR due to four PO delivery misses in June; procurement evaluating competitor express program, indicating imminent account loss."
     },
     {
       "snippet_id": "E6",
       "relevant": false,
       "supports": [],
-      "key_fact": "Historical precedent from different region and period; no direct evidence of current North-West capacity constraint or its resolution timing"
+      "key_fact": "Historical case from East region in 2025-11 describes SLA recovery but does not provide evidence about current North-West region or July 2026 drivers."
     }
   ],
   "new_hypothesis": null

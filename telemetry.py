@@ -26,6 +26,11 @@ def record(task: str, model: str, latency_ms: float, in_tok: int, out_tok: int, 
            "output_tokens": out_tok, "cost_usd": round(c, 6),
            "cost_inr": round(c * USD_INR, 4)}
     RECORDS.append(rec)
+    try:                       # Prometheus mirror (no-op if not installed)
+        import metrics
+        metrics.record_llm(task, model, mode, latency_ms, in_tok, out_tok, c)
+    except Exception:
+        pass
     return rec
 
 

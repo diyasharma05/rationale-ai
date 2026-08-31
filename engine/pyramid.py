@@ -459,4 +459,9 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     result["telemetry"] = telemetry.slice_from(tmark)
     result["wall_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
     result["inv_id"] = fb.log_investigation(result)
+    try:                       # Prometheus mirror (no-op if not installed)
+        import metrics
+        metrics.record_investigation(result)
+    except Exception:
+        pass
     return result

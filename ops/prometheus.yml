@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: rationale-engine
+    static_configs:
+      # the Streamlit app exposes /metrics on the host at :9108
+      - targets: ["host.docker.internal:9108"]
+        labels:
+          service: rationale-ai

@@ -1,9 +1,9 @@
 {
-  "headline": "Conversion dropped everywhere evenly, so no single regional cause explains it.",
-  "body": "All four regions fell by nearly the same share of the decline, roughly 20% each, indicating a broad, uniform drop rather than a localized issue [E1]. Marketing spend and session volume show weak alignment with the conversion change, so neither looks like the driver [E1]. An unvalidated lead points to a North-West warehouse conveyor failure disrupting fulfillment and triggering cancellations, but this has not been corroborated with evidence yet.",
+  "headline": "Conversion fell nearly evenly across all regions; no single confirmed cause yet.",
+  "body": "The drop is broad-based: West, East, North, and North-West each lost about a fifth of the total decline, roughly equal shares. That uniformity argues against a region-specific driver and points toward something systemic. Marketing spend and tracked sessions both show weak movement with the KPI, so neither corroborates the decline. An unvalidated lead ties this to a North-West warehouse failure and SLA breaches, but no evidence yet supports or refutes it.",
   "actions": [],
-  "what_could_change": "Confirmation that the conveyor failure timeline matches the SLA breach and cancellation data would validate this lead.",
-  "caveats": "Evidence coverage is empty and no hypotheses were scored, so this conclusion rests only on the uniformity pattern.",
-  "clarifying_question": "Can you provide fulfillment SLA breach and cancellation data by region for June-July to test the warehouse-failure lead?",
-  "escalation_brief": "Marketing conversion fell uniformly across all regions in July with no validated driver; investigate a suspected North-West warehouse conveyor failure linked to fulfillment delays and customer churn before reallocating campaign budget."
+  "what_could_change": "Confirmed SLA breach logs or churn timing data tied to the North-West warehouse incident would validate or rule out the lead.",
+  "caveats": "Confidence is capped because no supporting evidence dataset was available, only the aggregate signal; regional split alone can't isolate a cause.",
+  "clarifying_question": "Can you provide SLA breach or enterprise churn records for late June to test the warehouse-failure lead?",
+  "escalation_brief": "Marketing conversion dropped uniformly across all regions in July with no corroborating driver data; a warehouse-failure hypothesis is unverified and needs SLA/churn evidence before action."
 }

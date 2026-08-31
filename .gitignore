@@ -19,4 +19,5 @@ st_err.txt
 
 # local documents (remove these lines if you want them in the repo)
 *.pptx
+*.pdf
 VIDEO_SCRIPT.md

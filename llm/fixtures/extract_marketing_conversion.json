@@ -6,7 +6,7 @@
       "supports": [
         "NEW"
       ],
-      "key_fact": "Enterprise customer (Meridian Retail Group) paused orders in July after three of five June deliveries missed SLA; switched volume to competitor SwiftKart's new express program launched July 1"
+      "key_fact": "Enterprise customer (Meridian Retail Group) paused orders and migrated replenishment volume to competitor (SwiftKart) due to three of five June deliveries missing SLA; this represents direct loss of conversion/order volume from a high-value account."
     },
     {
       "snippet_id": "E2",
@@ -14,7 +14,7 @@
       "supports": [
         "NEW"
       ],
-      "key_fact": "Enterprise customer (Kalinga Mart) renewal at risk due to four June PO delivery misses; procurement actively evaluating SwiftKart's competing express program"
+      "key_fact": "Enterprise customer (Kalinga Mart) renewal at risk and evaluating competitor express program after June delivery misses on 4 POs, indicating imminent conversion loss in the North-West region."
     },
     {
       "snippet_id": "E3",
@@ -22,7 +22,7 @@
       "supports": [
         "NEW"
       ],
-      "key_fact": "WH-07 main conveyor failure on June 25 reduced North-West throughput to 60% and caused staffing shortfall; ops predicted SLA breaches on North-West lanes persisting until repair (3-week ETA)"
+      "key_fact": "WH-07 conveyor failure on June 25 reduced North-West throughput to ~60% and created staffing shortage; ops team forecasted SLA breaches on North-West lanes, which directly preceded the July conversion rate decline."
     },
     {
       "snippet_id": "E5",
@@ -30,7 +30,7 @@
       "supports": [
         "NEW"
       ],
-      "key_fact": "Manual sortation at WH-07 holding at 60% throughput as of July 3; backlog of 1,900 orders with oldest aged 5 days; complaint volume climbing for late deliveries"
+      "key_fact": "By July 3, WH-07 backlog reached 1,900 orders with oldest at 5 days; manual sortation holding at 60%; complaint volume climbing with late delivery as primary driver."
     },
     {
       "snippet_id": "E6",
@@ -38,25 +38,19 @@
       "supports": [
         "NEW"
       ],
-      "key_fact": "Consumer order delivered 3 days late (promised 2 days, delivered day 6) in early July due to WH-07 dispatch delay; customer requested refund"
-    },
-    {
-      "snippet_id": "E4",
-      "relevant": false,
-      "supports": [],
-      "key_fact": "Brand refresh is purely visual (logo/typography); no checkout or tracking changes"
+      "key_fact": "Consumer order promised in 2 days delivered in 6 days due to WH-07 dispatch delay; customer requested refund, indicating service failure converting to churn/non-repeat conversion."
     }
   ],
   "new_hypothesis": {
-    "label": "North-West warehouse conveyor failure in late June caused order fulfillment SLA breaches and delivery delays through July, triggering enterprise customer churn to competitor and increased consumer order cancellations/refund requests, directly reducing marketing conversion rate",
+    "label": "North-West warehouse operational failure in late June caused SLA breaches that triggered enterprise customer churn and reduced consumer repeat conversions in July",
     "keywords": [
       "WH-07 conveyor failure",
-      "June SLA breaches",
-      "customer churn to SwiftKart",
-      "delivery delays",
-      "North-West fulfillment",
-      "order volume loss",
-      "conversion rate decline"
+      "manual sortation 60% throughput",
+      "North-West SLA breaches",
+      "enterprise customer migration to SwiftKart",
+      "delayed deliveries",
+      "order backlog",
+      "customer complaint volume"
     ]
   }
 }

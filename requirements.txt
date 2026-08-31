@@ -7,3 +7,4 @@ pyyaml>=6.0
 plotly>=5.20
 scikit-learn>=1.4
 python-dotenv>=1.0
+prometheus_client>=0.20
