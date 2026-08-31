@@ -1,132 +1,384 @@
 {
   "uid": "rationale-engine",
   "title": "Rationale.AI : Engine Operations",
-  "tags": ["rationale", "engine"],
+  "tags": [
+    "rationale",
+    "engine"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5s",
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "panels": [
     {
-      "type": "row", "title": "Throughput & outcomes",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+      "type": "row",
+      "title": "Throughput & outcomes",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "stat", "title": "Investigations run",
-      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
-      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "type": "stat",
+      "title": "Investigations run",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        }
+      },
       "targets": [
-        { "expr": "sum(rationale_investigations_total)", "legendFormat": "total",
-          "refId": "A" }
-      ]
+        {
+          "expr": "sum(rationale_investigations_total)",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "id": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "piechart", "title": "Outcomes (actions vs abstain)",
-      "gridPos": { "h": 5, "w": 6, "x": 4, "y": 1 },
-      "options": { "legend": { "displayMode": "list", "placement": "right" } },
+      "type": "piechart",
+      "title": "Outcomes (actions vs abstain)",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 4,
+        "y": 1
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
       "targets": [
-        { "expr": "sum by (outcome) (rationale_investigations_total)",
-          "legendFormat": "{{outcome}}", "refId": "A" }
-      ]
+        {
+          "expr": "sum by (outcome) (rationale_investigations_total)",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "id": 3,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "stat", "title": "Estimated LLM spend (USD)",
-      "gridPos": { "h": 5, "w": 4, "x": 10, "y": 1 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } },
+      "type": "stat",
+      "title": "Estimated LLM spend (USD)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 10,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
       "targets": [
-        { "expr": "sum(rationale_llm_cost_usd_total)", "legendFormat": "spend",
-          "refId": "A" }
-      ]
+        {
+          "expr": "sum(rationale_llm_cost_usd_total)",
+          "legendFormat": "spend",
+          "refId": "A"
+        }
+      ],
+      "id": 4,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "stat", "title": "KPIs flagged / scanned",
-      "gridPos": { "h": 5, "w": 5, "x": 14, "y": 1 },
+      "type": "stat",
+      "title": "KPIs flagged / scanned",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 14,
+        "y": 1
+      },
       "targets": [
-        { "expr": "sum(rationale_kpis_flagged)", "legendFormat": "flagged", "refId": "A" },
-        { "expr": "sum(rationale_kpis_scanned)", "legendFormat": "scanned", "refId": "B" }
-      ]
+        {
+          "expr": "sum(rationale_kpis_flagged)",
+          "legendFormat": "flagged",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rationale_kpis_scanned)",
+          "legendFormat": "scanned",
+          "refId": "B"
+        }
+      ],
+      "id": 5,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "stat", "title": "LLM calls",
-      "gridPos": { "h": 5, "w": 5, "x": 19, "y": 1 },
+      "type": "stat",
+      "title": "LLM calls",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 1
+      },
       "targets": [
-        { "expr": "sum(rationale_llm_calls_total)", "legendFormat": "calls", "refId": "A" }
-      ]
+        {
+          "expr": "sum(rationale_llm_calls_total)",
+          "legendFormat": "calls",
+          "refId": "A"
+        }
+      ],
+      "id": 6,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "row", "title": "Latency",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }
+      "type": "row",
+      "title": "Latency",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 7,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "timeseries", "title": "Investigation wall time (p50 / p95)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
-      "fieldConfig": { "defaults": { "unit": "s" } },
+      "type": "timeseries",
+      "title": "Investigation wall time (p50 / p95)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
       "targets": [
-        { "expr": "histogram_quantile(0.5, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.95, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95", "refId": "B" }
-      ]
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rationale_investigation_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ],
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "timeseries", "title": "LLM call latency by model (p95)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
-      "fieldConfig": { "defaults": { "unit": "s" } },
+      "type": "timeseries",
+      "title": "LLM call latency by model (p95)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
       "targets": [
-        { "expr": "histogram_quantile(0.95, sum(rate(rationale_llm_latency_seconds_bucket[5m])) by (le, model))",
-          "legendFormat": "{{model}}", "refId": "A" }
-      ]
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rationale_llm_latency_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "row", "title": "Engine internals",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 }
+      "type": "row",
+      "title": "Engine internals",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 10,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "barchart", "title": "Deterministic work vs LLM calls",
+      "type": "barchart",
+      "title": "Deterministic work vs LLM calls",
       "description": "SQL / statistics / ML / retrieval operations performed, next to the number of LLM calls. The core design claim, measured.",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
       "targets": [
-        { "expr": "sum by (kind) (rationale_engine_operations_total)",
-          "legendFormat": "{{kind}}", "refId": "A" },
-        { "expr": "sum(rationale_llm_calls_total)", "legendFormat": "llm calls",
-          "refId": "B" }
-      ]
+        {
+          "expr": "sum by (kind) (rationale_engine_operations_total)",
+          "legendFormat": "{{kind}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rationale_llm_calls_total)",
+          "legendFormat": "llm calls",
+          "refId": "B"
+        }
+      ],
+      "id": 11,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "barchart", "title": "Detector votes",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "type": "barchart",
+      "title": "Detector votes",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
       "targets": [
-        { "expr": "sum by (detector, flag) (rationale_detector_flags_total)",
-          "legendFormat": "{{detector}} · {{flag}}", "refId": "A" }
-      ]
+        {
+          "expr": "sum by (detector, flag) (rationale_detector_flags_total)",
+          "legendFormat": "{{detector}} \u00b7 {{flag}}",
+          "refId": "A"
+        }
+      ],
+      "id": 12,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "timeseries", "title": "Confidence distribution (p50 / p90)",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
-      "fieldConfig": { "defaults": { "max": 1, "min": 0 } },
+      "type": "timeseries",
+      "title": "Confidence distribution (p50 / p90)",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0
+        }
+      },
       "targets": [
-        { "expr": "histogram_quantile(0.5, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
-          "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.9, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
-          "legendFormat": "p90", "refId": "B" }
-      ]
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.9, sum(rate(rationale_confidence_score_bucket[10m])) by (le))",
+          "legendFormat": "p90",
+          "refId": "B"
+        }
+      ],
+      "id": 13,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "timeseries", "title": "Tokens consumed",
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 24 },
+      "type": "timeseries",
+      "title": "Tokens consumed",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
       "targets": [
-        { "expr": "sum by (direction) (rate(rationale_llm_tokens_total[5m]) * 300)",
-          "legendFormat": "{{direction}}", "refId": "A" }
-      ]
+        {
+          "expr": "sum by (direction) (rate(rationale_llm_tokens_total[5m]) * 300)",
+          "legendFormat": "{{direction}}",
+          "refId": "A"
+        }
+      ],
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
-      "type": "barchart", "title": "Gate outcomes",
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 24 },
+      "type": "barchart",
+      "title": "Gate outcomes",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
       "targets": [
-        { "expr": "sum by (gate, result) (rationale_gate_outcomes_total)",
-          "legendFormat": "{{gate}} · {{result}}", "refId": "A" }
-      ]
+        {
+          "expr": "sum by (gate, result) (rationale_gate_outcomes_total)",
+          "legendFormat": "{{gate}} \u00b7 {{result}}",
+          "refId": "A"
+        }
+      ],
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     }
   ]
 }
