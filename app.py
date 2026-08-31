@@ -808,6 +808,31 @@ elif nav == "Live Feed":
         st.caption("The engine's own operational telemetry, scraped by Prometheus every "
                    "5 seconds and rendered by Grafana — embedded live, not screenshotted. "
                    "Business KPIs stay in the app; this is how the *service* is behaving.")
+        gc1, gc2 = st.columns([1.2, 3])
+        if gc1.button("Generate demo traffic", key="gen_load", width="stretch",
+                      help="Runs a spread of investigations in-process so the panels "
+                           "have something to show (uses offline responses — no API cost)."):
+            combos = [("revenue", "analyst"), ("fulfilment_sla", "analyst"),
+                      ("complaint_rate", "analyst"), ("marketing_conversion", "analyst"),
+                      ("enterprise_active_accounts", "analyst"), ("aov", "analyst"),
+                      ("revenue", "ceo"), ("home_decor_revenue", "analyst"),
+                      ("revenue", "sales_head_north")]
+            bar = st.progress(0.0, text="running investigations…")
+            for i, (k, r_) in enumerate(combos, start=1):
+                try:
+                    pyramid.investigate(k, PERIOD, r_, llm)
+                except Exception:
+                    pass
+                bar.progress(i / len(combos), text=f"{i}/{len(combos)} investigations")
+            bar.empty()
+            st.success(f"{len(combos)} investigations recorded — panels fill within ~5s "
+                       "(Prometheus scrape interval).")
+        gc2.caption("")
+        gc2.markdown(f"<div style='padding-top:24px;color:{C['muted']};font-size:0.85rem'>"
+                     "Panels stay empty until the engine does work — metrics are emitted "
+                     "per investigation, and reset when the app restarts.</div>",
+                     unsafe_allow_html=True)
+
         if not grafana_up():
             st.warning("Grafana isn't reachable at "
                        f"`{GRAFANA_URL}`. Start the optional stack:\n\n"
