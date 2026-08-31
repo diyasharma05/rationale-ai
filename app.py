@@ -12,9 +12,17 @@ import streamlit as st
 import yaml
 
 import feedback as fb
-import metrics
 import telemetry
 from engine import anomaly, confidence, db, pyramid, stats_ml, stream
+
+try:                       # optional: observability is not required to run
+    import metrics
+except Exception:
+    class metrics:         # type: ignore
+        ENABLED = False
+        serve = staticmethod(lambda: False)
+        record_scan = staticmethod(lambda *a, **k: None)
+        record_investigation = staticmethod(lambda *a, **k: None)
 from llm import prompts
 from llm.client import HAIKU, LLMClient
 
@@ -31,10 +39,21 @@ def month_name(p):
 
 st.set_page_config(page_title="Rationale.AI", page_icon="🧭", layout="wide")
 
-if not os.path.exists(os.path.join("data", "sales_orders.csv")):
-    import runpy
-    with st.spinner("First run : generating the synthetic dataset (~30 s)…"):
-        runpy.run_path(os.path.join("data", "generate_data.py"), run_name="__main__")
+# Absolute paths: the working directory differs between local runs and hosted
+# deployments, so never rely on it.
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(APP_DIR, "data")
+
+if not os.path.exists(os.path.join(DATA_DIR, "sales_orders.csv")):
+    try:
+        import runpy
+        with st.spinner("First run : building the synthetic dataset (~30 s)…"):
+            runpy.run_path(os.path.join(DATA_DIR, "generate_data.py"), run_name="__main__")
+    except Exception as _boot_err:                      # surface, don't white-screen
+        import traceback
+        st.error("Could not generate the dataset on first boot.")
+        st.code(traceback.format_exc(), language="text")
+        st.stop()
 
 
 # --- validated reference palette (dataviz method), theme-aware ---
@@ -1424,7 +1443,7 @@ elif nav == "Under the Hood":
     st.caption("The generator plants known causes, so we have ground truth. This is the "
                "engine scored against it across an incident month and three control "
                "months — regenerate any time with `python eval.py`.")
-    _ev_path = os.path.join("data", "state", "eval_results.json")
+    _ev_path = os.path.join(DATA_DIR, "state", "eval_results.json")
     if os.path.exists(_ev_path):
         import json as _json
         ev = _json.load(open(_ev_path, encoding="utf-8"))

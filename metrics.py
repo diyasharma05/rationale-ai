@@ -70,6 +70,7 @@ def serve():
         return False
     if os.environ.get("RATIONALE_METRICS", "1") != "1":
         return False
+    # hosted platforms often forbid binding extra ports — never let that break the app
     try:
         start_http_server(int(os.environ.get("RATIONALE_METRICS_PORT", "9108")))
         _started.set()
@@ -77,7 +78,7 @@ def serve():
     except OSError:          # port already bound (Streamlit hot-reload) — fine
         _started.set()
         return True
-    except Exception:
+    except BaseException:
         return False
 
 
