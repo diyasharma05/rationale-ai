@@ -110,10 +110,9 @@ source .venv/bin/activate
 # 3. Install dependencies (~2 min: streamlit, duckdb, scikit-learn, plotly, anthropic)
 pip install -r requirements.txt
 
-# 4. Generate the synthetic dataset (seeded — identical on every machine, ~30 s)
-#    Writes data/*.csv, the unstructured documents and the market-event feed,
-#    and resets the decision ledger.
-python data/generate_data.py
+# 4. (The seeded dataset ships with the repo, so there is no build step.
+#     To rebuild it from scratch — it is deterministic — run:)
+#     python data/generate_data.py
 
 # 5. OPTIONAL — add an Anthropic API key for live narratives. Pick ONE:
 #    a) this terminal session:

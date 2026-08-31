@@ -1,0 +1,3 @@
+SUPPORT TICKET NW-4411 | 2026-07-08 | Region: North-West | Priority: High
+Customer: consumer order ORD-7741xx.
+Order promised in 2 days, delivered on day 6. Customer states this is the second late delivery this month and asked for a refund of delivery charges. Agent notes warehouse dispatch was delayed at WH-07.

@@ -1,0 +1,5 @@
+EXIT CALL TRANSCRIPT | 2026-07-19 | Account: Meridian Retail Group (enterprise, North-West)
+AM: We noticed you paused orders this month.
+Client: Three of our last five deliveries missed SLA in June. We escalated twice. SwiftKart launched a 2-day express program for enterprise on July 1 and offered us onboarding credits. We have moved our replenishment volume to them.
+AM: Is there anything that would bring the volume back?
+Client: A reliable 3-day SLA on the North-West lanes, in writing.

@@ -1,0 +1,4 @@
+INCIDENT POSTMORTEM | 2025-11 | East region dispatch delays
+Symptom: SLA breaches rose from 8% to 15% over three weeks.
+Root cause: sorter capacity during festive peak.
+Action that worked: contracted temporary 3PL overflow capacity for 6 weeks and re-routed 30% of volume; SLA recovered to baseline in 12 days. Cost: ~9L. Recommendation: pre-approve 3PL overflow playbook for any hub exceeding 12% breach rate.

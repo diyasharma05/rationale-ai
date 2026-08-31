@@ -1,0 +1,39 @@
+[
+  {
+    "date": "2026-07-01",
+    "headline": "SwiftKart launches 2-day Express Delivery for business customers across North and North-West India",
+    "tags": [
+      "competitor",
+      "delivery",
+      "express",
+      "enterprise",
+      "sla"
+    ],
+    "regions": [
+      "North-West",
+      "North"
+    ],
+    "source": "NewsWire (simulated)"
+  },
+  {
+    "date": "2026-07-18",
+    "headline": "Monsoon disruption slows road freight along the Eastern corridor",
+    "tags": [
+      "logistics",
+      "weather"
+    ],
+    "regions": [
+      "East"
+    ],
+    "source": "NewsWire (simulated)"
+  },
+  {
+    "date": "2026-06-10",
+    "headline": "RBI holds policy rates; consumer sentiment index flat",
+    "tags": [
+      "macro"
+    ],
+    "regions": [],
+    "source": "NewsWire (simulated)"
+  }
+]

@@ -1,0 +1,2 @@
+SUPPORT TICKET NW-4502 | 2026-07-22 | Region: North-West | Priority: Medium
+Order stuck in 'packed' state for 3 days. Ops confirms backlog at WH-07 due to conveyor outage and peak-season staffing shortfall.

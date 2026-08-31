@@ -1,0 +1,2 @@
+INTERNAL OPS NOTE | 2026-06-28 | Author: NW Ops Lead
+WH-07 main conveyor failed on June 25; running on manual sortation at ~60% throughput. Spare part ETA 3 weeks. Peak staffing plan short 14 pickers. Expect SLA breaches on North-West lanes until resolved. Requested approval for temporary 3PL overflow capacity.
