@@ -31,6 +31,11 @@ def month_name(p):
 
 st.set_page_config(page_title="Rationale.AI", page_icon="🧭", layout="wide")
 
+if not os.path.exists(os.path.join("data", "sales_orders.csv")):
+    import runpy
+    with st.spinner("First run : generating the synthetic dataset (~30 s)…"):
+        runpy.run_path(os.path.join("data", "generate_data.py"), run_name="__main__")
+
 
 # --- validated reference palette (dataviz method), theme-aware ---
 def _theme_base():
@@ -1414,6 +1419,47 @@ elif nav == "Under the Hood":
 - **Scalability**: each investigation is stateless given (KPI, period, role) : horizontally
   shardable; fixtures + deterministic fallbacks make the system degrade gracefully, never fail.
 """)
+
+    st.subheader("Does it actually get the right answer?")
+    st.caption("The generator plants known causes, so we have ground truth. This is the "
+               "engine scored against it across an incident month and three control "
+               "months — regenerate any time with `python eval.py`.")
+    _ev_path = os.path.join("data", "state", "eval_results.json")
+    if os.path.exists(_ev_path):
+        import json as _json
+        ev = _json.load(open(_ev_path, encoding="utf-8"))
+        d, rc, ab, fa = (ev["detection"], ev["root_cause"], ev["abstention"],
+                         ev.get("false_alarm_impact", {}))
+        e1, e2, e3, e4 = st.columns(4)
+        e1.markdown(stat_tile("Detection recall", f"{d['recall']:.0%}",
+                              chip=f"precision {d['precision']:.0%}",
+                              sub=f"TP {d['tp']} · FP {d['fp']} · FN {d['fn']} · TN {d['tn']}",
+                              accent=C["good"]), unsafe_allow_html=True)
+        e2.markdown(stat_tile("Root-cause accuracy",
+                              f"{rc['accuracy']:.0%}" if rc["accuracy"] is not None else "—",
+                              sub=f"{rc['hits']} of {rc['total']} planted causes identified",
+                              accent=C["good"]), unsafe_allow_html=True)
+        e3.markdown(stat_tile("Abstention", f"{ab['correct']}/{ab['expected']}",
+                              sub=f"{ab['false_abstentions']} false abstentions",
+                              accent=C["good"]), unsafe_allow_html=True)
+        e4.markdown(stat_tile("False alarms", f"{fa.get('harmful', 0)} harmful",
+                              chip=f"{fa.get('contained', 0)} contained",
+                              sub="contained = flagged, then the gate refused a cause",
+                              accent=C["warning"] if fa.get("contained") else C["good"]),
+                    unsafe_allow_html=True)
+        st.markdown("**Confidence calibration** — do high-confidence answers turn out correct?")
+        st.dataframe(pd.DataFrame(ev["calibration"]), hide_index=True, width="stretch")
+        with st.expander(f"All {len(ev['cases'])} evaluated cases"):
+            cdf = pd.DataFrame(ev["cases"])
+            cdf["result"] = cdf["correct"].map({True: "correct", False: "MISS", None: "—"})
+            st.dataframe(cdf[["period", "kpi_name", "outcome", "confidence", "result", "note"]],
+                         hide_index=True, width="stretch", height=340)
+        st.caption(f"Run {ev['generated_at']} · median {ev['runtime']['median_ms']:.0f} ms "
+                   f"per investigation · {ev['runtime']['mean_llm_calls']} LLM calls each. "
+                   "Scored against synthetic ground truth — it validates the engine's logic, "
+                   "not real-world accuracy, which needs a client's labelled history.")
+    else:
+        st.info("No evaluation results yet — run `python eval.py` to generate them.")
 
     st.subheader("Cumulative session telemetry")
     if telemetry.RECORDS:

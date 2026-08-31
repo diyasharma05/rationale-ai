@@ -249,6 +249,37 @@ DEMO_SCRIPT.md               judge walkthrough
 
 ---
 
+## Does it actually work? (evaluation)
+
+The generator plants known causes, so there is ground truth to score against —
+an incident month plus **three control months where nothing was planted**, so any
+flag there is a genuine false positive.
+
+```bash
+python eval.py     # offline, ~1 min; writes data/state/eval_results.json
+```
+
+Current results (also rendered in the app under **Under the Hood → "Does it actually
+get the right answer?"**):
+
+| Measure | Result |
+|---|---|
+| Detection | **recall 100%**, precision 83% (TP 5 · FP 1 · FN 0 · TN 18) |
+| Root cause | **4 / 4** planted causes correctly identified |
+| Abstention | **1 / 1** correct, **0** false abstentions |
+| False alarms | 1 **contained** by the evidence gate · **0** produced a wrong conclusion |
+| Overall | **96%** across 24 scored cases |
+| Calibration | ≥0.75 band: 100% accurate · <0.60 band: 95% |
+
+The single false positive is worth reading, not hiding: in April a complaint-rate blip
+cleared the signal gate (z = 2.08 against a 2.0 threshold), the engine investigated,
+found no supporting evidence, and **abstained instead of inventing a cause**. That is
+the gated architecture doing its job — a false alarm cost some attention, not a wrong
+decision.
+
+This validates the engine's *logic* against synthetic ground truth. Real-world accuracy
+would need a client's labelled incident history.
+
 ## Optional : Prometheus + Grafana observability
 
 The engine exposes its **own operational metrics** (not business KPIs — those are
@@ -271,6 +302,30 @@ measured live rather than asserted.
 This is entirely optional: the app never depends on it, and runs identically if the
 stack (or `prometheus_client`) is absent. Disable the endpoint with
 `RATIONALE_METRICS=0`, or move it with `RATIONALE_METRICS_PORT`.
+
+## Deploy it (free, ~10 minutes)
+
+The app is deploy-ready: it generates its dataset on first boot, runs offline with no
+API key, and degrades gracefully when the optional observability stack is absent.
+
+**Streamlit Community Cloud**
+
+1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub.
+2. **New app** → repo `diyasharma05/rationale-ai`, branch `main`, file `app.py`.
+3. Deploy. First boot takes ~1 minute while the synthetic dataset is generated.
+
+No secrets are required — visitors get the offline demo, and anyone who wants live
+Claude narratives can paste their own key in the sidebar (held in memory, never stored).
+To run the hosted app in live mode instead, add `ANTHROPIC_API_KEY` under
+**App settings → Secrets** (this bills your account for every visitor).
+
+**Anywhere else** (Render, Fly.io, a VM, Docker):
+
+```bash
+pip install -r requirements.txt
+python data/generate_data.py
+streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+```
 
 ## Verify the install
 
