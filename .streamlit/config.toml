@@ -1,6 +1,9 @@
+# Theme only. Do NOT set [server] here: committing `headless = false` makes a
+# hosted deploy show Streamlit's interactive first-run email prompt, which
+# blocks on stdin so the server never binds its port.
 [theme]
 base = "dark"
 primaryColor = "#b455f0"
 
-[server]
-headless = false
+[browser]
+gatherUsageStats = false
