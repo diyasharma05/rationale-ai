@@ -71,33 +71,34 @@ def _theme_base():
 
 
 _PALETTES = {
-    # Accenture brand theme: core purple #A100FF on white; lighter purple steps on
-    # black for dark mode. Status colors (good/warning/critical) stay reserved and
-    # unthemed per the dataviz method; *_text variants are contrast-passing steps
-    # of the same hue for small text (all ratios verified >= 4.5:1 per surface).
-    "light": {
-        "ink": "#0b0b0b", "ink2": "#52514e", "muted": "#6e6c66",
-        "grid": "#eae6f2", "axis": "#cbc4d9",
-        "panel": "#faf7fd", "border": "rgba(70,0,115,0.12)",
-        "chip": "rgba(70,0,115,0.05)",
-        "band": "rgba(137,129,145,0.20)",           # threshold band (neutral)
-        "series": "#a100ff", "series_text": "#7500c0", "fill": "rgba(161,0,255,0.10)",
-        "pos": "#a100ff", "neg": "#d03b3b",         # diverging poles (purple <-> red)
-        "good": "#0ca30c", "critical": "#d03b3b", "warning": "#fab219",
-        "good_text": "#006300", "critical_text": "#b02a2a", "warning_text": "#8a5a00",
-        "llm": "#b13268",                           # magenta, distinct from brand purple
+    # "Chart recorder" system. Data is ink; color carries STATE only:
+    #   flame     = alarm + the one primary action        (never decoration)
+    #   amber     = watch                                  verdigris = steady/ok
+    # Surfaces are warm graphite / paper — deliberately not black-and-purple.
+    # Every fg/bg pair below is contrast-verified (>=4.5:1 text, >=3:1 marks).
+    "light": {   # paper recorder
+        "ink": "#20232a", "ink2": "#4b4f55", "muted": "#65696e",
+        "grid": "#e3dfd4", "axis": "#c9c4b8",
+        "panel": "#fbfaf6", "border": "#d9d4c8",
+        "chip": "rgba(32,35,42,0.05)",
+        "band": "rgba(110,115,120,0.16)",           # threshold band (neutral)
+        "series": "#3a3e45", "series_text": "#20232a", "fill": "rgba(58,62,69,0.10)",
+        "pos": "#3f7a5d", "neg": "#c63d18",         # polarity = state colors
+        "good": "#3f7a5d", "critical": "#c63d18", "warning": "#8f6410",
+        "good_text": "#3f7a5d", "critical_text": "#a83312", "warning_text": "#8f6410",
+        "llm": "#65696e",
     },
-    "dark": {
-        "ink": "#ffffff", "ink2": "#c9c3d1", "muted": "#8f8899",
-        "grid": "#2b2731", "axis": "#3a3542",
-        "panel": "rgba(180,85,240,0.055)", "border": "rgba(190,130,255,0.14)",
-        "chip": "rgba(255,255,255,0.06)",
-        "band": "rgba(255,255,255,0.07)",
-        "series": "#b455f0", "series_text": "#be82ff", "fill": "rgba(180,85,240,0.16)",
-        "pos": "#b455f0", "neg": "#e66767",         # dark-stepped diverging poles
-        "good": "#0ca30c", "critical": "#d03b3b", "warning": "#fab219",
-        "good_text": "#0ca30c", "critical_text": "#e66767", "warning_text": "#fab219",
-        "llm": "#e87ba4",                           # magenta, distinct from brand purple
+    "dark": {    # console
+        "ink": "#e7e4dc", "ink2": "#b9b5ab", "muted": "#8e959c",
+        "grid": "#262a30", "axis": "#31353c",
+        "panel": "#1d2025", "border": "#31353c",
+        "chip": "rgba(231,228,220,0.05)",
+        "band": "rgba(142,149,156,0.14)",
+        "series": "#c7c3b8", "series_text": "#e7e4dc", "fill": "rgba(199,195,184,0.10)",
+        "pos": "#63a68a", "neg": "#ff5c39",
+        "good": "#63a68a", "critical": "#ff5c39", "warning": "#e0a63c",
+        "good_text": "#7fb89e", "critical_text": "#ff7e5f", "warning_text": "#e0a63c",
+        "llm": "#8e959c",
     },
 }
 _BASE = _theme_base()
@@ -105,17 +106,18 @@ C = _PALETTES[_BASE]
 
 # Theme the app shell directly with CSS so the toggle takes effect instantly,
 # regardless of when Streamlit's own chrome catches up.
-_SHELL = {"dark": {"page": "#0d0d0d", "side": "#171320"},
-          "light": {"page": "#ffffff", "side": "#f5f0fa"}}[_BASE]
-# Typography : Inter for UI text (the workhorse of real product dashboards —
-# Linear, Vercel, Notion), JetBrains Mono for code/SQL. Tight tracking on
-# headings, relaxed line-height on body, and a deliberate type scale instead
-# of Streamlit's defaults.
-FONT_BODY = "'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif"
-FONT_MONO = "'JetBrains Mono', 'Cascadia Code', Consolas, monospace"
+_SHELL = {"dark": {"page": "#16181d", "side": "#1a1d22"},
+          "light": {"page": "#f4f2ec", "side": "#ece8de"}}[_BASE]
+# Typography : two voices. IBM Plex Sans is the console voice (labels, prose);
+# IBM Plex Mono is the instrument voice (every numeral, the clock, the tape,
+# z-values). A designed pairing with machine heritage — not the default stack.
+# NOTE: family names stay UNQUOTED (valid CSS) — these strings are injected into
+# single-quoted inline style attributes, where nested quotes would break the HTML
+FONT_BODY = "IBM Plex Sans, -apple-system, Segoe UI, system-ui, sans-serif"
+FONT_MONO = "IBM Plex Mono, Cascadia Code, Consolas, monospace"
 
 st.markdown(f"""<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
   html, body, .stApp, .stApp * {{ font-family: {FONT_BODY}; }}
   /* the global font override must NOT touch Streamlit's icon glyphs: they are
@@ -149,8 +151,9 @@ st.markdown(f"""<style>
   .stApp label {{ font-size: 0.84rem; font-weight: 500; }}
   .stApp button p {{ font-weight: 600; letter-spacing: -0.006em; }}
 
-  /* metric widgets */
-  [data-testid="stMetricValue"] {{ font-weight: 700; letter-spacing: -0.02em; }}
+  /* metric widgets : numerals are the instrument voice */
+  [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; font-weight: 500;
+               letter-spacing: 0; font-variant-numeric: tabular-nums; }}
 
   [data-testid="stHeader"] {{ background-color: {_SHELL['page']}; }}
   [data-testid="stSidebar"] {{ background-color: {_SHELL['side']}; }}
@@ -166,10 +169,9 @@ st.markdown(f"""<style>
   /* sidebar nav reads as bold menu entries */
   [data-testid="stSidebar"] .stRadio label p {{
       font-weight: 700; font-size: 1.02rem; }}
-  /* tab labels read as section headers */
+  /* tab labels : sentence case, weight carries the hierarchy */
   .stTabs button[data-baseweb="tab"] p {{
-      font-size: 0.92rem; font-weight: 700; letter-spacing: .04em;
-      text-transform: uppercase; }}
+      font-size: 0.94rem; font-weight: 600; letter-spacing: 0; }}
   /* selectbox dropdown renders in a body-level portal, outside .stApp : theme it too */
   div[data-baseweb="popover"] ul[data-baseweb="menu"] {{
       background-color: {_SHELL['side']} !important; border: 1px solid {C['border']}; }}
@@ -216,21 +218,21 @@ def human_line(cfg, an):
 
 
 def pill(text, role):
-    """role is a palette key ('good'/'warning'/'critical'/'ink2'/...): the accent color
-    draws the tint + border; the *_text variant (when defined) carries the label so
-    small text passes contrast on both surfaces."""
+    """State indicator : a colored square glyph + sentence-case word in ink.
+    Deliberately not a capsule — state reads like an instrument lamp, and the
+    color never has to carry the text's contrast."""
     accent = C.get(role, role)
-    txt = C.get(f"{role}_text", accent)
-    return (f"<span style='background:{accent}22;color:{txt};border:1px solid {accent};"
-            f"border-radius:10px;padding:1px 8px;font-size:0.78rem;font-weight:600'>{text}</span>")
+    return (f"<span style='white-space:nowrap'><span style='color:{accent};"
+            f"font-size:0.7rem'>▪</span> <span style='color:{C['ink2']};"
+            f"font-size:0.8rem;font-weight:600'>{text}</span></span>")
 
 
 def base_layout(fig, height):
     fig.update_layout(
         height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=8, r=8, t=8, b=8), showlegend=False,
-        font=dict(color=C["ink2"], size=11, family="Inter, 'Segoe UI', sans-serif"),
-        hoverlabel=dict(font_size=12, font_family="Inter, 'Segoe UI', sans-serif"),
+        font=dict(color=C["ink2"], size=11, family="IBM Plex Mono, Consolas, monospace"),
+        hoverlabel=dict(font_size=12, font_family="IBM Plex Sans, 'Segoe UI', sans-serif"),
     )
     fig.update_xaxes(showgrid=False, linecolor=C["axis"], tickcolor=C["axis"])
     fig.update_yaxes(gridcolor=C["grid"], zerolinecolor=C["axis"], linecolor=C["axis"])
@@ -305,27 +307,31 @@ def sparkline(series, an, cfg, height=150):
 
 def stat_tile(label, value, delta_txt=None, delta_color=None, chip=None, sub=None,
               accent=None):
-    """Redash-style metric counter: label, hero number, delta pill, context line."""
-    accent = accent or C["border"]
+    """Instrument tile: sentence-case label, mono numeral, plain-text context.
+    No left stripes, no capsules — a 2px top rule appears ONLY when the tile is
+    in an alarm/watch state (accent = critical/warning); everything else is quiet."""
+    top = (f"border-top:2px solid {accent};"
+           if accent in (C["critical"], C["warning"]) else "")
     bits = [
-        f"<div style='font-size:0.68rem;font-weight:600;color:{C['muted']};"
-        f"text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px'>{label}</div>",
-        f"<div style='font-size:1.6rem;font-weight:700;letter-spacing:-0.025em;"
-        f"font-variant-numeric:tabular-nums;color:{C['ink']};line-height:1.15'>{value}</div>",
+        f"<div style='font-size:0.8rem;font-weight:500;color:{C['muted']};"
+        f"margin-bottom:2px'>{label}</div>",
+        f"<div style='font-family:{FONT_MONO};font-size:1.5rem;font-weight:500;"
+        f"font-variant-numeric:tabular-nums;color:{C['ink']};line-height:1.2'>{value}</div>",
     ]
     row = []
     if delta_txt:
-        row.append(f"<span style='color:{delta_color or C['ink2']};font-weight:700;"
-                   f"font-size:0.9rem'>{delta_txt}</span>")
+        row.append(f"<span style='color:{delta_color or C['ink2']};font-weight:600;"
+                   f"font-size:0.84rem'>{delta_txt}</span>")
     if chip:
-        row.append(f"<span style='background:{C['chip']};border:1px solid {C['border']};"
-                   f"border-radius:9px;padding:0 7px;font-size:0.72rem;color:{C['ink2']}'>{chip}</span>")
+        row.append(f"<span style='font-family:{FONT_MONO};font-size:0.72rem;"
+                   f"color:{C['muted']}'>{chip}</span>")
     if row:
-        bits.append("<div style='margin-top:2px'>" + " ".join(row) + "</div>")
+        bits.append("<div style='margin-top:3px;display:flex;gap:10px;align-items:baseline'>"
+                    + " ".join(row) + "</div>")
     if sub:
-        bits.append(f"<div style='font-size:0.74rem;color:{C['muted']};margin-top:3px'>{sub}</div>")
-    return (f"<div style='border:1px solid {C['border']};border-left:4px solid {accent};"
-            f"border-radius:10px;padding:10px 14px;background:{C['panel']};"
+        bits.append(f"<div style='font-size:0.75rem;color:{C['muted']};margin-top:4px'>{sub}</div>")
+    return (f"<div style='border:1px solid {C['border']};{top}"
+            f"border-radius:3px;padding:11px 14px;background:{C['panel']};"
             f"min-height:96px'>{''.join(bits)}</div>")
 
 
@@ -507,10 +513,10 @@ def severity_order(scan):
 
 
 def section_label(text):
-    """Grafana-style row label: small, uppercase, muted."""
-    st.markdown(f"<div style='font-size:0.72rem;font-weight:600;color:{C['muted']};"
-                f"text-transform:uppercase;letter-spacing:.09em;margin:18px 0 7px'>"
-                f"{text}</div>", unsafe_allow_html=True)
+    """Section header: sentence case, weight carries the hierarchy — no caps,
+    no tracking, no eyebrow chrome."""
+    st.markdown(f"<div style='font-size:0.97rem;font-weight:600;color:{C['ink']};"
+                f"margin:20px 0 6px'>{text}</div>", unsafe_allow_html=True)
 
 
 # how each analytical method is badged throughout the app
@@ -525,11 +531,11 @@ METHODS = {
 
 
 def method_chip(kind, text=None):
+    """Plain mono token, not a capsule — reads like a spec line, not UI chrome."""
     label, _role = METHODS[kind]
-    return (f"<span style='background:{C['chip']};color:{C['ink2']};"
-            f"border:1px solid {C['border']};"
-            f"border-radius:9px;padding:1px 8px;font-size:0.74rem;font-weight:600;"
-            f"margin-right:6px'>{text or label}</span>")
+    return (f"<span style='font-family:{FONT_MONO};color:{C['ink2']};"
+            f"font-size:0.74rem;margin-right:14px;white-space:nowrap'>"
+            f"{text or label}</span>")
 
 
 def method_chip_row(kinds, texts=None):
@@ -555,9 +561,8 @@ def method_strip(r):
     kinds.append("llm")
     texts["llm"] = (f"{llm_calls} LLM calls : words only" if llm_calls
                     else "0 LLM calls : fully deterministic")
-    st.markdown(f"<div style='font-size:0.72rem;color:{C['muted']};text-transform:uppercase;"
-                f"letter-spacing:.06em;margin-top:8px'>What built this answer</div>",
-                unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:0.82rem;font-weight:600;color:{C['ink2']};"
+                f"margin-top:8px'>What built this answer</div>", unsafe_allow_html=True)
     method_chip_row(kinds, texts)
 
 
@@ -622,7 +627,8 @@ with st.sidebar:
     st.markdown(
         f"<div style='font-size:2.15rem;font-weight:800;letter-spacing:-0.04em;"
         f"line-height:1.1;padding:4px 0 2px;color:{C['ink']}'>"
-        f"Rationale<span style='color:{C['series']}'>.AI</span></div>",
+        f"Rationale<span style='color:"
+        f"{'#b48be0' if _BASE == 'dark' else '#7500c0'}'>.AI</span></div>",
         unsafe_allow_html=True)
     st.caption("Confidence-driven KPI intelligence-to-action engine : Team Rational.ai")
     if "dark_mode" not in st.session_state:
@@ -633,9 +639,9 @@ with st.sidebar:
         from streamlit import config as _st_config
         if _st_config.get_option("theme.base") != _desired:
             _st_config.set_option("theme.base", _desired)
-            # Accenture purple, stepped per mode (replaces stock Streamlit red accents)
+            # flame : the single action/alarm hue, stepped per mode
             _st_config.set_option("theme.primaryColor",
-                                  "#a100ff" if _desired == "light" else "#b455f0")
+                                  "#c63d18" if _desired == "light" else "#ff5c39")
             st.rerun()   # native widgets pick the new theme up on the rerun
     except Exception:
         pass
@@ -717,8 +723,9 @@ if nav == "Dashboard":
     if flagged_ids:
         lead = scan[worst][0]["name"].split(" (")[0]
         st.caption(f"**{len(flagged_ids)} of {len(kpi_ids)} KPIs** moved outside their normal "
-                   f"range · ≈ **{fmt(total_imp, 'INR')}/month** at stake · sharpest mover: "
-                   f"**{lead}**. Signed in as **{roles[role_id]['label']}**.")
+                   f"range this month, putting about **{fmt(total_imp, 'INR')}/month** at "
+                   f"stake; the sharpest mover is **{lead}**. "
+                   f"Signed in as **{roles[role_id]['label']}**.")
     else:
         st.caption(f"All KPIs inside their normal range in {month_name(PERIOD)}. "
                    f"Signed in as **{roles[role_id]['label']}**.")
@@ -847,20 +854,21 @@ if nav == "Dashboard":
 
 # ---------------------------------------------------------------- live feed
 elif nav == "Live Feed":
-    st.header("Live Feed : the stream the engine watches")
+    st.header("Live feed")
     st.caption(
-        "Replays the real event stream in accelerated time — orders, shipments, "
-        "SLA breaches, complaints and churn landing day by day. The monitors below "
-        "run the same statistical rule as the batch signal gate, so you can watch "
-        "an incident get caught as it happens.")
+        "The event stream, replayed in accelerated time — orders, shipments, SLA "
+        "breaches, complaints and churn landing day by day. Each monitor runs the "
+        "same statistical rule as the batch signal gate against a pre-incident "
+        "baseline, so you can watch an anomaly get caught as it happens.")
 
     if "sc" not in st.session_state:
         st.session_state.sc = stream.REPLAY_START
         st.session_state.playing = False
         st.session_state.alerted = []
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1.4, 2])
-    if c1.button("▶ Play" if not st.session_state.playing else "⏸ Pause",
+    # transport rail : flat controls + a recording lamp, no card
+    c1, c2, c3, c4 = st.columns([1, 1, 1.5, 1.8])
+    if c1.button("▶ Run" if not st.session_state.playing else "⏸ Pause",
                  type="primary", width="stretch", key="play_btn"):
         st.session_state.playing = not st.session_state.playing
         st.rerun()
@@ -871,10 +879,65 @@ elif nav == "Live Feed":
         st.rerun()
     speed = c3.select_slider("Speed", options=[1, 2, 3, 5], value=2,
                              format_func=lambda v: f"{v} day/tick", key="stream_speed")
-    c4.caption("")
-    c4.markdown(f"<div style='padding-top:26px;color:{C['muted']};font-size:0.85rem'>"
-                f"replay window {stream.REPLAY_START} → {stream.REPLAY_END}</div>",
-                unsafe_allow_html=True)
+    _lamp = C["critical"] if st.session_state.playing else C["muted"]
+    _word = "recording" if st.session_state.playing else "paused"
+    c4.markdown(
+        f"<div style='padding-top:30px'>"
+        f"<span style='color:{_lamp}'>●</span> "
+        f"<span style='color:{C['ink2']};font-size:0.85rem;font-weight:600'>{_word}</span>"
+        f"<span style='font-family:{FONT_MONO};color:{C['muted']};font-size:0.72rem'>"
+        f"&nbsp;&nbsp;{stream.REPLAY_START:%d %b} – {stream.REPLAY_END:%d %b %Y}</span>"
+        f"</div>", unsafe_allow_html=True)
+
+    _TOTAL_DAYS = (stream.REPLAY_END - stream.REPLAY_START).days + 1
+
+    def _figure(v, label):
+        return (f"<div><div style='font-family:{FONT_MONO};font-size:1.3rem;"
+                f"font-weight:500;font-variant-numeric:tabular-nums;color:{C['ink']};"
+                f"line-height:1.2'>{v}</div>"
+                f"<div style='font-size:0.75rem;color:{C['muted']}'>{label}</div></div>")
+
+    def _zmeter(z, breached):
+        zc = max(-3.0, min(3.0, z))
+        pos = (zc + 3) / 6 * 100
+        dot = C["critical"] if breached else C["ink2"]
+        rails = "".join(
+            f"<div style='position:absolute;top:0;bottom:0;left:{r}%;width:1px;"
+            f"background:{C['axis']}'></div>" for r in (100 / 6, 500 / 6))
+        return (
+            f"<div style='position:relative;height:12px;margin:10px 0 1px'>"
+            f"<div style='position:absolute;top:5px;left:0;right:0;height:2px;"
+            f"background:{C['band']}'></div>{rails}"
+            f"<div style='position:absolute;top:2px;left:calc({pos}% - 4px);width:8px;"
+            f"height:8px;border-radius:50%;background:{dot}'></div></div>"
+            f"<div style='display:flex;justify-content:space-between;"
+            f"font-family:{FONT_MONO};font-size:0.66rem;color:{C['muted']}'>"
+            f"<span>−{stream.BREACH_Z:g}</span><span>z {z:+.2f}</span>"
+            f"<span>+{stream.BREACH_Z:g}</span></div>")
+
+    def _monitor(s):
+        breached = s["breached"]
+        val = (fmt(s["current"], "INR") if s["unit"] == "INR"
+               else f"{s['current']:.1f}%" if s["unit"] == "%"
+               else f"{s['current']:.1f}")
+        state = (f"<span style='white-space:nowrap'>"
+                 f"<span style='color:{C['critical'] if breached else C['good']};"
+                 f"font-size:0.7rem'>▪</span> <span style='color:{C['ink2']};"
+                 f"font-size:0.74rem;font-weight:600'>"
+                 f"{'breached' if breached else 'steady'}</span></span>")
+        dcol = C["critical_text"] if breached else C["muted"]
+        arrow = "▲" if s["pct"] > 0 else "▼"
+        top = f"border-top:2px solid {C['critical']};" if breached else ""
+        return (
+            f"<div style='border:1px solid {C['border']};{top}border-radius:3px;"
+            f"background:{C['panel']};padding:11px 14px'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
+            f"<span style='font-size:0.8rem;font-weight:500;color:{C['muted']}'>"
+            f"{s['label']} — {s['region']}</span>{state}</div>"
+            f"<div style='font-family:{FONT_MONO};font-size:1.7rem;font-weight:500;"
+            f"font-variant-numeric:tabular-nums;color:{C['ink']};line-height:1.25'>{val}</div>"
+            f"<div style='font-size:0.78rem;color:{dcol}'>{arrow} {abs(s['pct']):.1f}% "
+            f"vs baseline</div>{_zmeter(s['z'], breached)}</div>")
 
     @st.fragment(run_every=1.1 if st.session_state.playing else None)
     def live_panel():
@@ -888,52 +951,40 @@ elif nav == "Live Feed":
         status = stream.live_status(cur, role_id)
         breached = [s for s in status if s["breached"]]
 
-        k1, k2, k3, k4 = st.columns(4)
-        k1.markdown(stat_tile("Stream clock", cur.strftime("%d %b %Y"),
-                              chip="LIVE" if st.session_state.playing else "paused",
-                              sub=f"day {tot['days']} of the replay",
-                              accent=C["series"]), unsafe_allow_html=True)
-        k2.markdown(stat_tile("Events ingested", f"{tot['events']:,}",
-                              sub=f"{tot['orders']:,} orders · {tot['shipments']:,} shipments "
-                                  f"· {tot['complaints']:,} complaints",
-                              accent=C["series"]), unsafe_allow_html=True)
-        k3.markdown(stat_tile("Revenue in window", fmt(tot["revenue"], "INR"),
-                              sub="cumulative since replay start", accent=C["good"]),
-                    unsafe_allow_html=True)
-        k4.markdown(stat_tile("Monitors breached", f"{len(breached)} / {len(status)}",
-                              sub="rolling 7-day vs 60-day baseline",
-                              accent=C["critical"] if breached else C["good"]),
-                    unsafe_allow_html=True)
+        # figures row left, the clock as the single hero on the right
+        fig_html = "".join((
+            _figure(f"{tot['events']:,}", "Events ingested"),
+            _figure(f"{tot['orders']:,}", "orders"),
+            _figure(f"{tot['shipments']:,}", "shipments"),
+            _figure(f"{tot['complaints']:,}", "complaints"),
+            _figure(fmt(tot["revenue"], "INR"), "revenue in window"),
+        ))
+        st.markdown(
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-end;"
+            f"border-top:1px solid {C['border']};border-bottom:1px solid {C['border']};"
+            f"padding:12px 2px;margin:6px 0 2px'>"
+            f"<div style='display:flex;gap:34px'>{fig_html}</div>"
+            f"<div style='text-align:right'>"
+            f"<div style='font-family:{FONT_MONO};font-size:1.75rem;font-weight:500;"
+            f"color:{C['ink']};line-height:1.1'>{cur:%d %b %Y}</div>"
+            f"<div style='font-size:0.75rem;color:{C['muted']}'>"
+            f"day {tot['days']} of {_TOTAL_DAYS}</div></div></div>",
+            unsafe_allow_html=True)
 
         for s in breached:
             if s["key"] not in st.session_state.alerted:
                 st.session_state.alerted.append(s["key"])
                 st.toast(f"{s['label']} breached in {s['region']}", icon="🚨")
 
-        section_label("Live monitors · rolling 7-day value against the pre-incident baseline")
-        mcols = st.columns(len(status) or 1)
-        for mc, s in zip(mcols, status):
-            val = (fmt(s["current"], "INR") if s["unit"] == "INR"
-                   else f"{s['current']:.1f}%" if s["unit"] == "%"
-                   else f"{s['current']:.1f}")
-            arrow = "▲" if s["pct"] > 0 else "▼"
-            mc.markdown(stat_tile(
-                f"{s['label']} · {s['region']}", val,
-                delta_txt=f"{arrow} {abs(s['pct']):.1f}% vs baseline",
-                delta_color=C["critical_text"] if s["breached"] else C["ink2"],
-                chip="BREACHED" if s["breached"] else "normal",
-                sub=f"worst region · z = {s['z']} · threshold ±{stream.BREACH_Z}",
-                accent=C["critical"] if s["breached"] else C["good"]),
-                unsafe_allow_html=True)
-
+        # alarm strip : the only element with a colored ground
         if breached:
             names = ", ".join(f"{s['label']} ({s['region']})" for s in breached)
             st.markdown(
-                f"<div style='padding:10px 14px;border:1px solid {C['critical']}55;"
-                f"border-left:4px solid {C['critical']};border-radius:8px;"
-                f"background:{C['critical']}14;color:{C['ink']};font-weight:600'>"
-                f"Threshold breached : {names}. The batch engine would open an "
-                f"investigation at the next scan.</div>", unsafe_allow_html=True)
+                f"<div style='padding:10px 14px;margin-top:10px;"
+                f"border-left:3px solid {C['critical']};background:{C['critical']}14;"
+                f"color:{C['ink']};font-weight:600'>Threshold breached : {names}. "
+                f"The batch engine would open an investigation at the next scan.</div>",
+                unsafe_allow_html=True)
             if st.button("Investigate this now", type="primary", key="live_to_inv"):
                 st.session_state.kpi_sel = ("fulfilment_sla"
                                             if any(s["key"] == "fulfilment_sla" for s in breached)
@@ -943,39 +994,57 @@ elif nav == "Live Feed":
                 st.session_state._nav_target = "Investigation"
                 st.rerun()
 
-        gL, gR = st.columns([3, 2])
-        with gL:
-            section_label("Arrivals per day · shaded = replayed so far")
-            ser = stream.series_to(cur, role_id)
-            fig = go.Figure()
-            fig.add_trace(go.Bar(x=ser["day"], y=ser["orders"], name="orders",
-                                 marker_color=C["fill"],
-                                 hovertemplate="%{x}: %{y:,} orders<extra></extra>"))
-            fig.add_trace(go.Scatter(x=ser["day"], y=ser["complaints"], name="complaints",
-                                     mode="lines", line=dict(color=C["critical"], width=2),
-                                     yaxis="y2",
-                                     hovertemplate="%{x}: %{y} complaints<extra></extra>"))
-            base_layout(fig, 260)
-            fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                                          tickfont=dict(size=9, color=C["muted"])),
-                              showlegend=True,
-                              legend=dict(orientation="h", y=1.12, font=dict(size=10)))
-            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False},
-                            key="live_vol")
-        with gR:
-            section_label("Event ticker")
-            sev_color = {"high": C["critical_text"], "warn": C["warning_text"],
-                         "info": C["ink2"]}
-            rows = stream.recent_events(cur, role_id)
-            html = "".join(
-                f"<div style='border-bottom:1px solid {C['border']};padding:5px 0'>"
-                f"<span style='color:{C['muted']};font-size:0.72rem'>{e['day']}</span> "
-                f"<span style='color:{sev_color[e['sev']]};font-size:0.72rem;"
-                f"font-weight:700'>{e['kind']}</span><br>"
-                f"<span style='color:{C['ink']};font-size:0.86rem'>{e['text']}</span></div>"
-                for e in rows) or "<div style='color:#888'>waiting for events…</div>"
-            st.markdown(f"<div style='max-height:262px;overflow:auto'>{html}</div>",
-                        unsafe_allow_html=True)
+        section_label("Live monitors")
+        st.caption("Rolling 7-day value for the worst region, against its own pre-incident "
+                   "baseline. The meter shows where today's z sits between the breach rails.")
+        mcols = st.columns(len(status) or 1)
+        for mc, s in zip(mcols, status):
+            mc.markdown(_monitor(s), unsafe_allow_html=True)
+
+        section_label("Arrivals per day")
+        ser = stream.series_to(cur, role_id)
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=ser["day"], y=ser["orders"], name="orders",
+                             marker_color=C["series"], opacity=0.45,
+                             hovertemplate="%{x}: %{y:,} orders<extra></extra>"))
+        fig.add_trace(go.Scatter(x=ser["day"], y=ser["complaints"], name="complaints",
+                                 mode="lines", line=dict(color=C["warning"], width=2),
+                                 yaxis="y2",
+                                 hovertemplate="%{x}: %{y} complaints<extra></extra>"))
+        base_layout(fig, 240)
+        fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                                      tickfont=dict(size=9, color=C["muted"])),
+                          showlegend=True,
+                          legend=dict(orientation="h", y=1.14, font=dict(size=10)))
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False},
+                        key="live_vol")
+
+        # the tape : a chart-recorder log with a date gutter; alarms print in flame
+        section_label("Tape")
+        kind_color = {"high": C["critical_text"], "warn": C["warning_text"],
+                      "info": C["muted"]}
+        rows = stream.recent_events(cur, role_id)
+
+        def _tape_row(e):
+            day = pd.Timestamp(e["day"]).strftime("%d %b")
+            alarm = e["sev"] == "high"
+            edge = (f"border-left:3px solid {C['critical']};background:{C['critical']}10;"
+                    if alarm else "border-left:3px solid transparent;")
+            return (f"<div style='{edge}display:flex;gap:14px;padding:4px 10px;"
+                    f"border-bottom:1px solid {C['grid']}'>"
+                    f"<span style='font-family:{FONT_MONO};font-size:0.72rem;"
+                    f"color:{C['muted']};min-width:44px;padding-top:2px'>{day}</span>"
+                    f"<span style='font-size:0.7rem;font-weight:600;"
+                    f"color:{kind_color[e['sev']]};min-width:76px;padding-top:2px'>"
+                    f"{e['kind'].lower()}</span>"
+                    f"<span style='font-family:{FONT_MONO};font-size:0.79rem;"
+                    f"color:{C['ink']}'>{e['text']}</span></div>")
+
+        tape = "".join(_tape_row(e) for e in rows) or (
+            f"<div style='padding:10px;color:{C['muted']}'>waiting for events…</div>")
+        st.markdown(f"<div style='border:1px solid {C['border']};border-radius:3px;"
+                    f"max-height:300px;overflow:auto'>{tape}</div>",
+                    unsafe_allow_html=True)
 
     live_panel()
 
