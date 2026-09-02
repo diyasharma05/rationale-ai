@@ -200,35 +200,11 @@ def badge(text, color):
     return f"<span style='color:{color};font-weight:600;font-size:0.85rem'>{text}</span>"
 
 
-def figure_parts(v, unit):
-    """Split a KPI value into a pure numeral (set in mono) and a unit suffix
-    (set in sans) — mono is for figures that benefit from tabular alignment,
-    never for words."""
-    if v is None:
-        return "–", ""
-    if unit == "%":
-        return f"{v:.1f}%", ""
-    if unit.startswith("INR"):
-        num = f"₹{v/1e7:.2f} Cr" if abs(v) >= 1e7 else f"₹{v/1e5:.2f} L"
-        return num, ("per day" if unit.endswith("/day") else "")
-    num = f"{v:,.0f}" if float(v) == int(v) else f"{v:,.1f}"
-    return num, unit
-
-
-def fig_html(v, unit, size="1.45rem", color=None):
-    num, suf = figure_parts(v, unit)
-    sfx = (f" <span style='font-family:{FONT_BODY};font-size:0.6em;"
-           f"color:{C['muted']};font-weight:500'>{suf}</span>" if suf else "")
-    return (f"<span style='font-family:{FONT_MONO};font-size:{size};font-weight:500;"
-            f"font-variant-numeric:tabular-nums;color:{color or C['ink']};"
-            f"line-height:1.2'>{num}</span>{sfx}")
-
-
 def human_line(cfg, an):
     """One plain-English sentence about a KPI : templated from the numbers, no LLM."""
     name = cfg["name"].split(" (")[0]
     if an["sparse"]:
-        return (f"{name} is new, with only {an['n_history']} month(s) of history so far, "
+        return (f"{name} is new : only {an['n_history']} month(s) of history so far, "
                 f"so we're watching it rather than judging it.")
     val, usual = fmt(an["current"], cfg["unit"]), fmt(an["mean"], cfg["unit"])
     direction = "up" if (an["z"] or 0) > 0 else "down"
@@ -236,10 +212,10 @@ def human_line(cfg, an):
         imp = monthly_impact(an, cfg["unit"])
         tail = (f" If it holds, that's about {fmt(imp, 'INR')} a month."
                 if imp is not None else "")
-        return (f"{name} came in at {val}, {direction} about "
+        return (f"{name} came in at {val} : {direction} about "
                 f"{abs(an['pct_vs_recent']):.0f}% from its usual {usual}. That's well outside "
                 f"its normal range, which is why it's flagged.{tail}")
-    return (f"{name} is at {val}, close to its usual {usual} — moving around, "
+    return (f"{name} is at {val}, close to its usual {usual} : moving around, "
             "but nothing unusual.")
 
 
@@ -552,7 +528,7 @@ METHODS = {
     "ml": ("ML", "warning"),
     "retrieval": ("retrieval", "ink2"),
     "rules": ("rules", "ink2"),
-    "llm": ("LLM (words only)", "llm"),
+    "llm": ("LLM · words only", "llm"),
 }
 
 
@@ -585,8 +561,8 @@ def method_strip(r):
     if mix.get("docs_retrieved"):
         kinds.append("retrieval"); texts["retrieval"] = f"{mix['docs_retrieved']} documents retrieved"
     kinds.append("llm")
-    texts["llm"] = (f"{llm_calls} LLM calls (words only)" if llm_calls
-                    else "0 LLM calls (fully deterministic)")
+    texts["llm"] = (f"{llm_calls} LLM calls : words only" if llm_calls
+                    else "0 LLM calls : fully deterministic")
     st.markdown(f"<div style='font-size:0.82rem;font-weight:600;color:{C['ink2']};"
                 f"margin-top:8px'>What built this answer</div>", unsafe_allow_html=True)
     method_chip_row(kinds, texts)
@@ -656,7 +632,7 @@ with st.sidebar:
         f"Rationale<span style='color:"
         f"{'#b48be0' if _BASE == 'dark' else '#7500c0'}'>.AI</span></div>",
         unsafe_allow_html=True)
-    st.caption("Confidence-driven KPI intelligence, by Team Rational.ai")
+    st.caption("Confidence-driven KPI intelligence-to-action engine : Team Rational.ai")
     if "dark_mode" not in st.session_state:
         st.session_state.dark_mode = (_BASE == "dark")
     st.toggle("🌙 Dark mode", key="dark_mode")
@@ -676,8 +652,8 @@ with st.sidebar:
                            format_func=lambda r: roles[r]["label"])
     persona = roles[role_id]["persona"]
     is_exec = persona == "executive"
-    st.caption(f"Sees {'all regions' if roles[role_id]['regions'] == 'all' else ', '.join(roles[role_id]['regions'])}")
-    st.caption(f"Account names {'masked' if roles[role_id]['mask_accounts'] else 'visible'}")
+    st.caption(f"Row access: **{'all regions' if roles[role_id]['regions'] == 'all' else ', '.join(roles[role_id]['regions'])}** · "
+               f"Account names: **{'masked' if roles[role_id]['mask_accounts'] else 'visible'}**")
     nav = st.radio("View", ["Dashboard", "Live Feed", "Data", "Investigation",
                             "Decision Ledger", "Under the Hood"],
                    key="nav", label_visibility="collapsed")
@@ -720,12 +696,12 @@ if nav in ("Dashboard", "Data", "Investigation"):
     with _tb_right:
         PERIOD = st.selectbox("Analysis window", PERIODS, key="period",
                               format_func=lambda p: month_name(p)
-                              + (" (latest)" if p == DEFAULT_PERIOD else ""))
+                              + ("  · latest" if p == DEFAULT_PERIOD else ""))
     with _tb_left:
         st.caption("")  # spacer keeps the picker on the baseline
         st.markdown(f"<div style='color:{C['muted']};font-size:0.85rem;padding-top:26px'>"
-                    f"Analysing {month_name(PERIOD)} — every number on this page is "
-                    f"computed live for this window</div>",
+                    f"analysing <b style='color:{C['ink']}'>{month_name(PERIOD)}</b> : every "
+                    f"number on this page is computed live for this window</div>",
                     unsafe_allow_html=True)
 
 # ---------------------------------------------------------------- dashboard
@@ -745,136 +721,92 @@ if nav == "Dashboard":
     fresh = db.source_freshness()
     systems = {v["system"]: v for v in fresh.values()}
 
-    def _goto_investigation(k):
-        st.session_state.kpi_sel = k
-        st.session_state._nav_target = "Investigation"
-        st.session_state._autorun = True
-        st.rerun()
-
-    def _kpi_details(k, cfg, s, an, show_definition=False):
-        """Shared details popover body — sentences, not dot-joined meta."""
-        imp = monthly_impact(an, cfg["unit"])
-        st.markdown(f"**{cfg['name']}**")
-        st.write(human_line(cfg, an))
-        if show_definition:
-            st.caption(f"*{cfg['definition'].strip()}*")
-        d1, d2, d3 = st.columns(3)
-        d1.metric("This month", fmt(an["current"], cfg["unit"]))
-        d2.metric("Usually", fmt(an["mean"], cfg["unit"]),
-                  delta=(f"{an['pct_vs_recent']:+.1f}%"
-                         if an["pct_vs_recent"] is not None else None),
-                  delta_color="off")
-        d3.metric("Monthly impact", fmt(imp, "INR") if imp is not None else "—")
-        if not is_exec and not an["sparse"]:
-            zt = cfg["materiality"]["min_abs_z"]
-            st.caption(f"Normal range {fmt(an['mean'] - zt * an['std'], cfg['unit'])} to "
-                       f"{fmt(an['mean'] + zt * an['std'], cfg['unit'])}; "
-                       f"z is {an['z']} against a gate of ±{zt}. Owner: {cfg['owner']}.")
-        src = db.load_contract()["sources"][cfg["source"]]
-        st.caption(f"From {src['system']} at {src['grain']} grain, refreshed "
-                   f"{src['refresh']}; data as of {fresh[cfg['source']]['as_of']}.")
-        st.plotly_chart(sparkline(s, an, cfg, height=120), width="stretch",
-                        config={"displayModeBar": False}, key=f"pop_spark_{k}")
-        if st.button("Investigate why", key=f"pop_inv_{k}", type="primary",
-                     width="stretch"):
-            _goto_investigation(k)
-
-    st.header(f"Business Health — {month_name(PERIOD)}")
+    st.header(f"Business Health : {month_name(PERIOD)}")
     if flagged_ids:
-        st.caption(f"{len(flagged_ids)} of {len(kpi_ids)} KPIs are outside their normal "
-                   f"range this month; roughly {fmt(total_imp, 'INR')} a month is at stake. "
-                   f"Signed in as {roles[role_id]['label']}. Scanned across "
-                   f"{len(systems)} systems in {_scan_ms:,.0f} ms, just now.")
+        lead = scan[worst][0]["name"].split(" (")[0]
+        st.caption(f"**{len(flagged_ids)} of {len(kpi_ids)} KPIs** moved outside their normal "
+                   f"range this month, putting about **{fmt(total_imp, 'INR')}/month** at "
+                   f"stake; the sharpest mover is **{lead}**. "
+                   f"Signed in as **{roles[role_id]['label']}**.")
     else:
-        st.caption(f"All {len(kpi_ids)} KPIs are inside their normal ranges this month. "
-                   f"Signed in as {roles[role_id]['label']}. Scanned across "
-                   f"{len(systems)} systems in {_scan_ms:,.0f} ms, just now.")
+        st.caption(f"All KPIs inside their normal range in {month_name(PERIOD)}. "
+                   f"Signed in as **{roles[role_id]['label']}**.")
+    st.caption(f"⏱ computed live just now : {len(kpi_ids)} KPIs scanned across "
+               f"{len(systems)} systems in **{_scan_ms:,.0f} ms**")
 
-    # --- the lead : the biggest problem gets the page's only large treatment ---
+    # --- overview stat row (Grafana-style top panels) ---
+    section_label("This month at a glance")
+    o1, o2, o3, o4 = st.columns(4)
+    o1.markdown(stat_tile("KPIs needing attention", f"{len(flagged_ids)} / {len(kpi_ids)}",
+                          chip=f"{len(sparse_ids)} building baseline" if sparse_ids else None,
+                          sub="severity-ordered below",
+                          accent=C["critical"] if flagged_ids else C["good"]),
+                unsafe_allow_html=True)
+    o2.markdown(stat_tile("Est. revenue impact", f"{fmt(total_imp, 'INR')} /mo",
+                          delta_txt="▼ vs baseline" if total_imp < 0 else "▲ vs baseline",
+                          delta_color=C["critical_text"] if total_imp < 0 else C["good_text"],
+                          sub="flagged KPIs, vs 12-month baseline", accent=C["critical"]),
+                unsafe_allow_html=True)
+    o3.markdown(stat_tile("Largest deviation",
+                          scan[worst][0]["name"].split(" (")[0] if worst else "—",
+                          delta_txt=(f"{scan[worst][2]['pct_vs_recent']:+.1f}%" if worst else None),
+                          delta_color=C["critical_text"],
+                          chip=(None if is_exec or not worst else f"z = {scan[worst][2]['z']}"),
+                          sub="most statistically extreme movement", accent=C["warning"]),
+                unsafe_allow_html=True)
+    o4.markdown(stat_tile("Data sources", f"{len(systems)} reconciled",
+                          chip=f"latest as of {max(v['as_of'] for v in systems.values())}",
+                          sub=" · ".join(f"{v['system'].split(' (')[0]}: {v['refresh'].split(' ')[0]}"
+                                         for v in systems.values()),
+                          accent=C["good"]), unsafe_allow_html=True)
+
+    # --- needs-attention metrics: clickable tiles with a details popover ---
     if flagged_ids:
-        wcfg, ws, wan = scan[worst]
-        wimp = monthly_impact(wan, wcfg["unit"])
-        st.markdown(f"<div style='border-top:3px solid {C['critical']};margin-top:14px'></div>",
-                    unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:0.82rem;font-weight:600;"
-                    f"color:{C['critical_text']};margin:10px 0 0'>Biggest problem this month"
-                    f"</div>", unsafe_allow_html=True)
-        Lz, Rz = st.columns([2, 2.7], gap="large")
-        with Lz:
-            st.markdown(f"<div style='font-size:1.25rem;font-weight:600;color:{C['ink']};"
-                        f"margin:2px 0 6px'>{wcfg['name']}</div>", unsafe_allow_html=True)
-            arrow = "▲" if wan["z"] > 0 else "▼"
-            zbit = ("" if is_exec else
-                    f"&nbsp;&nbsp;<span style='font-family:{FONT_MONO};font-size:0.8rem;"
-                    f"color:{C['muted']}'>z {wan['z']:+.2f}</span>")
-            st.markdown(fig_html(wan["current"], wcfg["unit"], size="2.5rem"),
-                        unsafe_allow_html=True)
-            st.markdown(f"<div style='margin:2px 0 8px'><span style='font-size:1rem;"
-                        f"font-weight:600;color:{C['critical_text']}'>{arrow} "
-                        f"{abs(wan['pct_vs_recent']):.1f}% vs recent months</span>{zbit}</div>",
-                        unsafe_allow_html=True)
-            st.write(human_line(wcfg, wan))
-            if wimp is not None:
-                st.caption(f"Roughly {fmt(wimp, 'INR')} a month if it holds.")
-            a1, a2 = st.columns([1.25, 1])
-            if a1.button("Investigate", type="primary", key="lead_inv", width="stretch"):
-                _goto_investigation(worst)
-            with a2.popover("Details", width="stretch"):
-                _kpi_details(worst, wcfg, ws, wan)
-        with Rz:
-            st.plotly_chart(sparkline(ws, wan, wcfg, height=252), width="stretch",
-                            config={"displayModeBar": False}, key="lead_spark")
-
-        # --- the rest of the flagged set : a ruled table, not cards ---
-        others = flagged_ids[1:]
-        if others:
-            section_label("Also flagged")
-            for k in others:
+        section_label("Needs attention : biggest problem first · click a metric for its details")
+        for row_start in range(0, len(flagged_ids), 4):
+            wcols = st.columns(4)
+            for wc, k in zip(wcols, flagged_ids[row_start:row_start + 4]):
                 cfg, s, an = scan[k]
                 imp = monthly_impact(an, cfg["unit"])
-                st.markdown(f"<div style='border-top:1px solid {C['grid']}'></div>",
-                            unsafe_allow_html=True)
-                r1, r2, r3, r4, r5, r6 = st.columns([2.5, 1.5, 1.15, 0.95, 1.0, 1.15])
-                r1.markdown(f"<div style='padding-top:9px;font-weight:600;font-size:0.93rem;"
-                            f"color:{C['ink']}'>{cfg['name']}</div>", unsafe_allow_html=True)
-                r2.markdown(f"<div style='padding-top:7px'>"
-                            + fig_html(an["current"], cfg["unit"], size="1.1rem")
-                            + "</div>", unsafe_allow_html=True)
                 arrow = "▲" if an["z"] > 0 else "▼"
-                r3.markdown(f"<div style='padding-top:9px;font-size:0.88rem;font-weight:600;"
-                            f"color:{C['critical_text']}'>{arrow} "
-                            f"{abs(an['pct_vs_recent']):.1f}%</div>", unsafe_allow_html=True)
-                r4.markdown("" if is_exec else
-                            f"<div style='padding-top:10px;font-family:{FONT_MONO};"
-                            f"font-size:0.78rem;color:{C['muted']}'>z {an['z']:+.2f}</div>",
-                            unsafe_allow_html=True)
-                with r5.popover("Details", width="stretch"):
-                    _kpi_details(k, cfg, s, an)
-                if r6.button("Investigate", key=f"row_inv_{k}", width="stretch"):
-                    _goto_investigation(k)
-            st.markdown(f"<div style='border-top:1px solid {C['grid']}'></div>",
-                        unsafe_allow_html=True)
+                with wc:
+                    st.markdown(stat_tile(
+                        cfg["name"], fmt(an["current"], cfg["unit"]),
+                        delta_txt=f"{arrow} {abs(an['pct_vs_recent']):.1f}%",
+                        delta_color=C["critical_text"],
+                        chip=None if is_exec else f"z = {an['z']}",
+                        sub=(f"≈ {fmt(imp, 'INR')} /month vs baseline" if imp is not None
+                             else "outside its normal range"),
+                        accent=C["critical"]), unsafe_allow_html=True)
+                    with st.popover("▸ details", width="stretch"):
+                        st.markdown(f"**{cfg['name']}**")
+                        st.write(human_line(cfg, an))
+                        d1, d2, d3 = st.columns(3)
+                        d1.metric("This month", fmt(an["current"], cfg["unit"]))
+                        d2.metric("Usually", fmt(an["mean"], cfg["unit"]),
+                                  delta=f"{an['pct_vs_recent']:+.1f}%", delta_color="off")
+                        d3.metric("Monthly impact", fmt(imp, "INR") if imp is not None else "—")
+                        if not is_exec:
+                            zt = cfg["materiality"]["min_abs_z"]
+                            st.caption(
+                                f"normal range: {fmt(an['mean'] - zt * an['std'], cfg['unit'])} "
+                                f"– {fmt(an['mean'] + zt * an['std'], cfg['unit'])} · "
+                                f"z = {an['z']} (gate at ±{zt}) · owner: {cfg['owner']}")
+                        src = db.load_contract()["sources"][cfg["source"]]
+                        st.caption(f"source: {src['system']} · {src['grain']} · refreshed "
+                                   f"{src['refresh']} · as of {fresh[cfg['source']]['as_of']}")
+                        st.plotly_chart(sparkline(s, an, cfg, height=120), width="stretch",
+                                        config={"displayModeBar": False}, key=f"pop_spark_{k}")
+                        if st.button("🔍 Investigate why", key=f"pop_inv_{k}", type="primary",
+                                     width="stretch"):
+                            st.session_state.kpi_sel = k
+                            st.session_state._nav_target = "Investigation"
+                            st.session_state._autorun = True
+                            st.rerun()
 
-    # --- browse layer : every KPI as a small trend panel, sources as an aside ---
-    gh, ga = st.columns([2.7, 1.25], gap="large")
-    with gh:
-        section_label("All KPIs")
-        st.caption("The shaded band is each metric's own normal range; a red dot outside "
-                   "it is why the metric was flagged. The dotted line is a three-month "
-                   "trend forecast.")
-    with ga:
-        src_rows = "".join(
-            f"<div style='display:flex;justify-content:space-between;gap:12px;"
-            f"border-bottom:1px solid {C['grid']};padding:3px 0'>"
-            f"<span style='font-size:0.8rem;color:{C['ink2']}'>{v['system'].split(' (')[0]}</span>"
-            f"<span style='font-size:0.8rem;color:{C['muted']}'>{v['refresh']}</span></div>"
-            for v in systems.values())
-        st.markdown(f"<div style='margin-top:22px'>"
-                    f"<div style='font-size:0.82rem;font-weight:600;color:{C['ink']};"
-                    f"margin-bottom:3px'>Data sources</div>{src_rows}"
-                    f"<div style='font-size:0.73rem;color:{C['muted']};margin-top:4px'>"
-                    f"latest data {max(v['as_of'] for v in systems.values())}</div></div>",
-                    unsafe_allow_html=True)
+    section_label("Every KPI at a glance · shaded band = the metric's own normal range "
+                  "(a red dot outside it is why we flagged it) · dotted line = 3-month "
+                  "OLS trend forecast with 90% interval")
     for row_start in range(0, len(kpi_ids), 3):
         cols = st.columns(3)
         for col, kpi_id in zip(cols, kpi_ids[row_start:row_start + 3]):
@@ -894,15 +826,16 @@ if nav == "Dashboard":
                 if an["pct_vs_recent"] is not None:
                     arrow = "▲" if an["pct_vs_recent"] > 0 else "▼"
                     dcol = C["critical_text"] if an["material"] else C["ink2"]
-                    delta_html = (f"<span style='font-size:0.9rem;font-weight:600;color:{dcol};"
+                    delta_html = (f"<span style='font-size:0.95rem;font-weight:700;color:{dcol};"
                                   f"margin-left:8px'>{arrow} {abs(an['pct_vs_recent']):.1f}%</span>")
-                st.markdown(f"<div>{fig_html(an['current'], cfg['unit'], size='1.4rem')}"
-                            f"{delta_html}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:1.55rem;font-weight:700;"
+                            f"letter-spacing:-0.025em;font-variant-numeric:tabular-nums;"
+                            f"color:{C['ink']};line-height:1.2'>"
+                            f"{fmt(an['current'], cfg['unit'])}{delta_html}</div>",
+                            unsafe_allow_html=True)
                 imp = monthly_impact(an, cfg["unit"])
-                _srcname = db.load_contract()["sources"][cfg["source"]]["system"].split(" (")[0]
-                st.caption(f"About {fmt(imp, 'INR')} a month vs baseline"
-                           if an["material"] and imp is not None
-                           else f"Monthly, from {_srcname}")
+                st.caption(f"≈ {fmt(imp, 'INR')} /month vs baseline" if an["material"] and imp is not None
+                           else f"{cfg['name'].split(' (')[0]} · monthly · {db.load_contract()['sources'][cfg['source']]['system'].split(' (')[0]}")
                 st.plotly_chart(sparkline(s, an, cfg), width="stretch",
                                 config={"displayModeBar": False}, key=f"spark_{kpi_id}")
                 b1, b2 = st.columns([1, 1])
@@ -911,8 +844,8 @@ if nav == "Dashboard":
                     st.write(human_line(cfg, an))
                     st.caption(f"*{cfg['definition'].strip()}*")
                     src = db.load_contract()["sources"][cfg["source"]]
-                    st.caption(f"Owner: {cfg['owner']}. From {src['system']}, refreshed "
-                               f"{src['refresh']}; data as of {fresh[cfg['source']]['as_of']}.")
+                    st.caption(f"owner: {cfg['owner']} · source: {src['system']} · "
+                               f"refreshed {src['refresh']} · as of {fresh[cfg['source']]['as_of']}")
                 label = ("🔍 Why?" if an["material"]
                          else ("👁 Monitor" if an["sparse"] else "Check signal"))
                 if b2.button(label, key=f"inv_{kpi_id}", width="stretch"):
@@ -1051,7 +984,7 @@ elif nav == "Live Feed":
             st.markdown(
                 f"<div style='padding:10px 14px;margin-top:10px;"
                 f"border-left:3px solid {C['critical']};background:{C['critical']}14;"
-                f"color:{C['ink']};font-weight:600'>Threshold breached — {names}. "
+                f"color:{C['ink']};font-weight:600'>Threshold breached : {names}. "
                 f"The batch engine would open an investigation at the next scan.</div>",
                 unsafe_allow_html=True)
             if st.button("Investigate this now", type="primary", key="live_to_inv"):
@@ -1119,7 +1052,7 @@ elif nav == "Live Feed":
 
 # ---------------------------------------------------------------- data explorer
 elif nav == "Data":
-    st.header("Data")
+    st.header("Data : the live feed behind every number")
     st.caption("Redash-style explorer over the governed sources. Every query below runs "
                "against the same tables the engine reads, with this role's row-level "
                "security applied : nothing is precomputed.")
@@ -1164,7 +1097,7 @@ elif nav == "Data":
                           sub="row-level security applied in SQL", accent=C["warning"]),
                 unsafe_allow_html=True)
 
-    section_label(f"Volume over time (rows per {grain})")
+    section_label(f"Volume over time · rows per {grain}")
     if not vol.empty:
         vfig = go.Figure(go.Bar(x=vol["bucket"], y=vol["rows_"], marker_color=C["series"],
                                 hovertemplate="%{x}: %{y:,} rows<extra></extra>"))
@@ -1175,10 +1108,10 @@ elif nav == "Data":
     else:
         st.info("No rows in the selected range for your data scope.")
 
-    section_label("SQL executed (row-level security clause included)")
+    section_label("SQL executed · row-level security clause included")
     st.code(" ".join(vol_sql.split()), language="sql")
 
-    section_label("Latest 50 records in range (sensitive columns masked per role)")
+    section_label("Latest 50 records in range · sensitive columns masked per role")
     for mask_col in ("account", "account_name"):
         if mask_col in latest.columns:
             latest[mask_col] = latest[mask_col].astype(str).map(
@@ -1235,11 +1168,11 @@ elif nav == "Investigation":
     else:
         an, conf = r["anomaly"], r["confidence"]
         outcome_style = {
-            "actions": ("Root cause established — actions recommended", C["good"]),
-            "tentative": ("Tentative — likely cause found; confirm before committing", C["warning"]),
-            "abstain": ("Abstained — evidence is insufficient or contradictory; escalated to a human expert", C["critical"]),
-            "sparse": ("Too new to diagnose — monitoring with widened bands", C["warning"]),
-            "no_signal": ("No signal — movement within normal variation", C["good"]),
+            "actions": ("✅ ROOT CAUSE ESTABLISHED : ACTIONS RECOMMENDED", C["good"]),
+            "tentative": ("🟡 TENTATIVE : likely cause found; confirm before committing", C["warning"]),
+            "abstain": ("⛔ ABSTAINED : evidence insufficient/contradictory; escalated to a human expert", C["critical"]),
+            "sparse": ("◔ TOO NEW TO DIAGNOSE : monitoring with widened bands", C["warning"]),
+            "no_signal": ("✓ NO SIGNAL : movement within normal variation", C["good"]),
         }[r["outcome"]]
 
         # ---- verdict row: the metric's own chart + the decision, side by side ----
@@ -1279,7 +1212,7 @@ elif nav == "Investigation":
         # ---- why it moved: charts lead, prose supports ----
         n = r["narrative"]
         has_hyp = bool(r["hypotheses"])
-        section_label("Why it moved — Ranked explanatory drivers" if has_hyp
+        section_label("Why it moved · Ranked explanatory drivers" if has_hyp
                       else "What the engine concluded")
         st.markdown(f"#### {n['headline']}")
         if has_hyp:
@@ -1316,7 +1249,7 @@ elif nav == "Investigation":
         contrib_tables = (r.get("contribution") or {}).get("tables", {})
         reg_table = contrib_tables.get("region")
         if reg_table is not None and not reg_table.empty:
-            section_label("Where the movement sits (by region, vs the 3-month baseline)")
+            section_label("Where the movement sits · by region, vs 3-month baseline")
             dim_unit = cfg.get("dim_unit", r["unit"])
             bad_when = "up" if cfg.get("good_direction", "up") == "down" else "down"
             if r["unit"] in ("INR/day", "INR", "accounts"):
@@ -1357,19 +1290,19 @@ elif nav == "Investigation":
             st.caption(f"Caveats: {n['caveats']}")
 
         # ---- audit trail ----
-        st.subheader("How we got here")
+        st.subheader("How we got here : audit trail")
         LEVEL_LABEL = {"1": "SQL, statistics & machine learning",
                        "2": "document retrieval + language model",
                        "3": "rule-based matching", "G": "statistics",
                        "4": "language model"}
         for lv in r["levels"]:
             gate = lv.get("gate")
-            head = (f"**Level {lv['level']} — {lv['name']}** "
-                    f"({LEVEL_LABEL.get(str(lv['level']), '')})")
+            head = (f"**Level {lv['level']} : {lv['name']}** · "
+                    f"{LEVEL_LABEL.get(str(lv['level']), '')}")
             with st.expander(head, expanded=(not is_exec and str(lv["level"]) in ("1", "G"))):
                 st.write(lv["summary"])
                 if gate:
-                    st.markdown(f"**{gate['name']} {'passed' if gate['passed'] else 'failed'}.** "
+                    st.markdown(f"**{gate['name']} : {'passed' if gate['passed'] else 'failed'}.** "
                                 f"{gate['detail']}")
                 if str(lv["level"]) == "1" and gate and not an["sparse"] \
                         and an.get("z") is not None:

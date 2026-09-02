@@ -31,9 +31,9 @@ at.run()
 assert not at.exception, at.exception
 body = all_text(at)
 assert "Net Revenue" in body, "revenue tile missing"
-assert "Biggest problem" in body and "Also flagged" in body, "lead/table missing"
-assert "Data sources" in body, "sources block missing"
-assert "at stake" in body, "summary sentence missing"
+assert "needs attention" in body.lower(), "attention tiles missing"
+assert "reconciled" in body.lower(), "source freshness tile missing"
+assert "Est. revenue impact" in body, "overview stat row missing"
 print("   ok — pure-metrics dashboard renders")
 
 print("2) golden path (revenue, analyst, mock) — ranked drivers + actions...")
@@ -41,7 +41,7 @@ at.radio[0].set_value(NAV_INV).run()
 at.button(key="run_btn").click().run()
 assert not at.exception, at.exception
 body = all_text(at)
-assert "Root cause established" in body, "golden path did not reach ACTIONS"
+assert "ROOT CAUSE ESTABLISHED" in body, "golden path did not reach ACTIONS"
 assert "Ranked explanatory drivers" in body, "ranking section missing"
 assert "Decision right" in body, "decision rights missing from action cards"
 assert "North-West" in body
@@ -71,7 +71,7 @@ at.selectbox(key="kpi_sel").set_value("marketing_conversion").run()
 at.button(key="run_btn").click().run()
 assert not at.exception, at.exception
 body = all_text(at)
-assert "Abstained" in body, "abstain outcome missing"
+assert "ABSTAINED" in body, "abstain outcome missing"
 assert len(at.warning) > 0, "clarifying question missing"
 print("   ok — abstained with clarifying question")
 
@@ -79,7 +79,7 @@ print("5) sparse path (home_decor_revenue)...")
 at.selectbox(key="kpi_sel").set_value("home_decor_revenue").run()
 at.button(key="run_btn").click().run()
 assert not at.exception, at.exception
-assert "Too new" in all_text(at), "sparse outcome missing"
+assert "TOO NEW" in all_text(at), "sparse outcome missing"
 print("   ok — sparse guard rendered")
 
 print("6) CEO role: masked narrative, no stats jargon in badge...")
