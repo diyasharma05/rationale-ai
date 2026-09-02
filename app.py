@@ -72,10 +72,12 @@ def _theme_base():
 
 _PALETTES = {
     # "Chart recorder" system. Data is ink; color carries STATE only:
-    #   flame     = alarm + the one primary action        (never decoration)
+    #   red       = alarm (breach, flagged, recording lamp)
     #   amber     = watch                                  verdigris = steady/ok
-    # Surfaces are warm graphite / paper — deliberately not black-and-purple.
-    # Every fg/bg pair below is contrast-verified (>=4.5:1 text, >=3:1 marks).
+    #   brand purple = the action role (primary buttons, slider, focus) — set via
+    #   theme.primaryColor, never used for data or alarms.
+    # Surfaces are warm graphite / paper. Every fg/bg pair below is
+    # contrast-verified (>=4.5:1 text, >=3:1 marks).
     "light": {   # paper recorder
         "ink": "#20232a", "ink2": "#4b4f55", "muted": "#65696e",
         "grid": "#e3dfd4", "axis": "#c9c4b8",
@@ -83,9 +85,9 @@ _PALETTES = {
         "chip": "rgba(32,35,42,0.05)",
         "band": "rgba(110,115,120,0.16)",           # threshold band (neutral)
         "series": "#3a3e45", "series_text": "#20232a", "fill": "rgba(58,62,69,0.10)",
-        "pos": "#3f7a5d", "neg": "#c63d18",         # polarity = state colors
-        "good": "#3f7a5d", "critical": "#c63d18", "warning": "#8f6410",
-        "good_text": "#3f7a5d", "critical_text": "#a83312", "warning_text": "#8f6410",
+        "pos": "#3f7a5d", "neg": "#b42318",         # polarity = state colors
+        "good": "#3f7a5d", "critical": "#b42318", "warning": "#8f6410",
+        "good_text": "#3f7a5d", "critical_text": "#9a1f10", "warning_text": "#8f6410",
         "llm": "#65696e",
     },
     "dark": {    # console
@@ -95,9 +97,9 @@ _PALETTES = {
         "chip": "rgba(231,228,220,0.05)",
         "band": "rgba(142,149,156,0.14)",
         "series": "#c7c3b8", "series_text": "#e7e4dc", "fill": "rgba(199,195,184,0.10)",
-        "pos": "#63a68a", "neg": "#ff5c39",
-        "good": "#63a68a", "critical": "#ff5c39", "warning": "#e0a63c",
-        "good_text": "#7fb89e", "critical_text": "#ff7e5f", "warning_text": "#e0a63c",
+        "pos": "#63a68a", "neg": "#e5484d",
+        "good": "#63a68a", "critical": "#e5484d", "warning": "#e0a63c",
+        "good_text": "#7fb89e", "critical_text": "#ff7b81", "warning_text": "#e0a63c",
         "llm": "#8e959c",
     },
 }
@@ -639,9 +641,9 @@ with st.sidebar:
         from streamlit import config as _st_config
         if _st_config.get_option("theme.base") != _desired:
             _st_config.set_option("theme.base", _desired)
-            # flame : the single action/alarm hue, stepped per mode
+            # brand purple carries the action role, stepped per mode
             _st_config.set_option("theme.primaryColor",
-                                  "#c63d18" if _desired == "light" else "#ff5c39")
+                                  "#a100ff" if _desired == "light" else "#b455f0")
             st.rerun()   # native widgets pick the new theme up on the rerun
     except Exception:
         pass

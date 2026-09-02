@@ -3,7 +3,7 @@
 # blocks on stdin so the server never binds its port.
 [theme]
 base = "dark"
-primaryColor = "#ff5c39"
+primaryColor = "#b455f0"
 
 [browser]
 gatherUsageStats = false
