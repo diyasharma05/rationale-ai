@@ -475,32 +475,9 @@ def gate_bullets(an, cfg, height=118):
 
 @st.cache_resource
 def start_metrics():
-    """Expose /metrics for Prometheus once per process."""
+    """Expose /metrics for Prometheus once per process (opt-in via env;
+    the Grafana layer is parked — see ops/ to re-enable)."""
     return metrics.serve()
-
-
-GRAFANA_URL = os.environ.get("RATIONALE_GRAFANA_URL", "http://localhost:3000")
-
-
-@st.cache_data(ttl=15)
-def grafana_up() -> bool:
-    import urllib.request
-    try:
-        with urllib.request.urlopen(f"{GRAFANA_URL}/api/health", timeout=2) as r:
-            return r.status == 200
-    except Exception:
-        return False
-
-
-def grafana_panel(panel_id: int, height: int = 240, window: str = "now-30m"):
-    """Embed a single live Grafana panel (d-solo) inside the app."""
-    theme = "dark" if _BASE == "dark" else "light"
-    src = (f"{GRAFANA_URL}/d-solo/rationale-engine/engine-ops?orgId=1"
-           f"&panelId={panel_id}&from={window}&to=now&theme={theme}&refresh=5s&kiosk")
-    st.markdown(
-        f"<iframe src='{src}' width='100%' height='{height}' frameborder='0' "
-        f"style='border:1px solid {C['border']};border-radius:8px;background:transparent'>"
-        f"</iframe>", unsafe_allow_html=True)
 
 
 @st.cache_resource
@@ -871,201 +848,136 @@ if nav == "Dashboard":
 # ---------------------------------------------------------------- live feed
 elif nav == "Live Feed":
     st.header("Live Feed : the stream the engine watches")
-    tab_stream, tab_ops = st.tabs(["Business stream", "Engine operations (Grafana)"])
+    st.caption(
+        "Replays the real event stream in accelerated time — orders, shipments, "
+        "SLA breaches, complaints and churn landing day by day. The monitors below "
+        "run the same statistical rule as the batch signal gate, so you can watch "
+        "an incident get caught as it happens.")
 
-    # ---- tab 2 : live Grafana panels, embedded ----
-    with tab_ops:
-        st.caption("The engine's own operational telemetry, scraped by Prometheus every "
-                   "5 seconds and rendered by Grafana — embedded live, not screenshotted. "
-                   "Business KPIs stay in the app; this is how the *service* is behaving.")
-        gc1, gc2 = st.columns([1.2, 3])
-        if gc1.button("Generate demo traffic", key="gen_load", width="stretch",
-                      help="Runs a spread of investigations in-process so the panels "
-                           "have something to show (uses offline responses — no API cost)."):
-            combos = [("revenue", "analyst"), ("fulfilment_sla", "analyst"),
-                      ("complaint_rate", "analyst"), ("marketing_conversion", "analyst"),
-                      ("enterprise_active_accounts", "analyst"), ("aov", "analyst"),
-                      ("revenue", "ceo"), ("home_decor_revenue", "analyst"),
-                      ("revenue", "sales_head_north")]
-            bar = st.progress(0.0, text="running investigations…")
-            for i, (k, r_) in enumerate(combos, start=1):
-                try:
-                    pyramid.investigate(k, PERIOD, r_, llm)
-                except Exception:
-                    pass
-                bar.progress(i / len(combos), text=f"{i}/{len(combos)} investigations")
-            bar.empty()
-            st.success(f"{len(combos)} investigations recorded — panels fill within ~5s "
-                       "(Prometheus scrape interval).")
-        gc2.caption("")
-        gc2.markdown(f"<div style='padding-top:24px;color:{C['muted']};font-size:0.85rem'>"
-                     "Panels stay empty until the engine does work — metrics are emitted "
-                     "per investigation, and reset when the app restarts.</div>",
-                     unsafe_allow_html=True)
+    if "sc" not in st.session_state:
+        st.session_state.sc = stream.REPLAY_START
+        st.session_state.playing = False
+        st.session_state.alerted = []
 
-        if not grafana_up():
-            st.warning("Grafana isn't reachable at "
-                       f"`{GRAFANA_URL}`. Start the optional stack:\n\n"
-                       "```\ncd ops\ndocker compose up -d\n```\n"
-                       "The app works fine without it — this tab is observability only.")
-            st.caption(f"Raw metrics are always available at "
-                       f"http://localhost:{os.environ.get('RATIONALE_METRICS_PORT', '9108')}/metrics")
-        else:
-            section_label("Deterministic work vs LLM calls · the design claim, measured")
-            grafana_panel(11, height=260)
-            o1, o2 = st.columns(2)
-            with o1:
-                section_label("Outcome mix")
-                grafana_panel(3, height=220)
-                section_label("Investigation latency (p50 / p95)")
-                grafana_panel(8, height=240)
-            with o2:
-                section_label("Gate outcomes")
-                grafana_panel(15, height=220)
-                section_label("Confidence distribution")
-                grafana_panel(13, height=240)
-            s1, s2, s3 = st.columns(3)
-            with s1:
-                grafana_panel(2, height=150)
-            with s2:
-                grafana_panel(6, height=150)
-            with s3:
-                grafana_panel(4, height=150)
-            st.caption(f"Full dashboard, alerting and history: [{GRAFANA_URL}]({GRAFANA_URL}) "
-                       "· Prometheus: http://localhost:9090")
+    c1, c2, c3, c4 = st.columns([1, 1, 1.4, 2])
+    if c1.button("▶ Play" if not st.session_state.playing else "⏸ Pause",
+                 type="primary", width="stretch", key="play_btn"):
+        st.session_state.playing = not st.session_state.playing
+        st.rerun()
+    if c2.button("↺ Restart", width="stretch", key="reset_stream"):
+        st.session_state.sc = stream.REPLAY_START
+        st.session_state.playing = False
+        st.session_state.alerted = []
+        st.rerun()
+    speed = c3.select_slider("Speed", options=[1, 2, 3, 5], value=2,
+                             format_func=lambda v: f"{v} day/tick", key="stream_speed")
+    c4.caption("")
+    c4.markdown(f"<div style='padding-top:26px;color:{C['muted']};font-size:0.85rem'>"
+                f"replay window {stream.REPLAY_START} → {stream.REPLAY_END}</div>",
+                unsafe_allow_html=True)
 
-    # ---- tab 1 : the business event stream ----
-    with tab_stream:
-        st.caption(
-            "Replays the real event stream in accelerated time — orders, shipments, "
-            "SLA breaches, complaints and churn landing day by day. The monitors below "
-            "run the same statistical rule as the batch signal gate, so you can watch "
-            "an incident get caught as it happens.")
+    @st.fragment(run_every=1.1 if st.session_state.playing else None)
+    def live_panel():
+        if st.session_state.playing:
+            nxt = st.session_state.sc + pd.Timedelta(days=speed).to_pytimedelta()
+            st.session_state.sc = stream.clamp(nxt)
+            if st.session_state.sc >= stream.REPLAY_END:
+                st.session_state.playing = False
+        cur = st.session_state.sc
+        tot = stream.totals_to(cur, role_id)
+        status = stream.live_status(cur, role_id)
+        breached = [s for s in status if s["breached"]]
 
-        if "sc" not in st.session_state:
-            st.session_state.sc = stream.REPLAY_START
-            st.session_state.playing = False
-            st.session_state.alerted = []
-
-        c1, c2, c3, c4 = st.columns([1, 1, 1.4, 2])
-        if c1.button("▶ Play" if not st.session_state.playing else "⏸ Pause",
-                     type="primary", width="stretch", key="play_btn"):
-            st.session_state.playing = not st.session_state.playing
-            st.rerun()
-        if c2.button("↺ Restart", width="stretch", key="reset_stream"):
-            st.session_state.sc = stream.REPLAY_START
-            st.session_state.playing = False
-            st.session_state.alerted = []
-            st.rerun()
-        speed = c3.select_slider("Speed", options=[1, 2, 3, 5], value=2,
-                                 format_func=lambda v: f"{v} day/tick", key="stream_speed")
-        c4.caption("")
-        c4.markdown(f"<div style='padding-top:26px;color:{C['muted']};font-size:0.85rem'>"
-                    f"replay window {stream.REPLAY_START} → {stream.REPLAY_END}</div>",
+        k1, k2, k3, k4 = st.columns(4)
+        k1.markdown(stat_tile("Stream clock", cur.strftime("%d %b %Y"),
+                              chip="LIVE" if st.session_state.playing else "paused",
+                              sub=f"day {tot['days']} of the replay",
+                              accent=C["series"]), unsafe_allow_html=True)
+        k2.markdown(stat_tile("Events ingested", f"{tot['events']:,}",
+                              sub=f"{tot['orders']:,} orders · {tot['shipments']:,} shipments "
+                                  f"· {tot['complaints']:,} complaints",
+                              accent=C["series"]), unsafe_allow_html=True)
+        k3.markdown(stat_tile("Revenue in window", fmt(tot["revenue"], "INR"),
+                              sub="cumulative since replay start", accent=C["good"]),
+                    unsafe_allow_html=True)
+        k4.markdown(stat_tile("Monitors breached", f"{len(breached)} / {len(status)}",
+                              sub="rolling 7-day vs 60-day baseline",
+                              accent=C["critical"] if breached else C["good"]),
                     unsafe_allow_html=True)
 
-        @st.fragment(run_every=1.1 if st.session_state.playing else None)
-        def live_panel():
-            if st.session_state.playing:
-                nxt = st.session_state.sc + pd.Timedelta(days=speed).to_pytimedelta()
-                st.session_state.sc = stream.clamp(nxt)
-                if st.session_state.sc >= stream.REPLAY_END:
-                    st.session_state.playing = False
-            cur = st.session_state.sc
-            tot = stream.totals_to(cur, role_id)
-            status = stream.live_status(cur, role_id)
-            breached = [s for s in status if s["breached"]]
+        for s in breached:
+            if s["key"] not in st.session_state.alerted:
+                st.session_state.alerted.append(s["key"])
+                st.toast(f"{s['label']} breached in {s['region']}", icon="🚨")
 
-            k1, k2, k3, k4 = st.columns(4)
-            k1.markdown(stat_tile("Stream clock", cur.strftime("%d %b %Y"),
-                                  chip="LIVE" if st.session_state.playing else "paused",
-                                  sub=f"day {tot['days']} of the replay",
-                                  accent=C["series"]), unsafe_allow_html=True)
-            k2.markdown(stat_tile("Events ingested", f"{tot['events']:,}",
-                                  sub=f"{tot['orders']:,} orders · {tot['shipments']:,} shipments "
-                                      f"· {tot['complaints']:,} complaints",
-                                  accent=C["series"]), unsafe_allow_html=True)
-            k3.markdown(stat_tile("Revenue in window", fmt(tot["revenue"], "INR"),
-                                  sub="cumulative since replay start", accent=C["good"]),
+        section_label("Live monitors · rolling 7-day value against the pre-incident baseline")
+        mcols = st.columns(len(status) or 1)
+        for mc, s in zip(mcols, status):
+            val = (fmt(s["current"], "INR") if s["unit"] == "INR"
+                   else f"{s['current']:.1f}%" if s["unit"] == "%"
+                   else f"{s['current']:.1f}")
+            arrow = "▲" if s["pct"] > 0 else "▼"
+            mc.markdown(stat_tile(
+                f"{s['label']} · {s['region']}", val,
+                delta_txt=f"{arrow} {abs(s['pct']):.1f}% vs baseline",
+                delta_color=C["critical_text"] if s["breached"] else C["ink2"],
+                chip="BREACHED" if s["breached"] else "normal",
+                sub=f"worst region · z = {s['z']} · threshold ±{stream.BREACH_Z}",
+                accent=C["critical"] if s["breached"] else C["good"]),
+                unsafe_allow_html=True)
+
+        if breached:
+            names = ", ".join(f"{s['label']} ({s['region']})" for s in breached)
+            st.markdown(
+                f"<div style='padding:10px 14px;border:1px solid {C['critical']}55;"
+                f"border-left:4px solid {C['critical']};border-radius:8px;"
+                f"background:{C['critical']}14;color:{C['ink']};font-weight:600'>"
+                f"Threshold breached : {names}. The batch engine would open an "
+                f"investigation at the next scan.</div>", unsafe_allow_html=True)
+            if st.button("Investigate this now", type="primary", key="live_to_inv"):
+                st.session_state.kpi_sel = ("fulfilment_sla"
+                                            if any(s["key"] == "fulfilment_sla" for s in breached)
+                                            else "revenue")
+                st.session_state.period = "2026-07"
+                st.session_state._autorun = True
+                st.session_state._nav_target = "Investigation"
+                st.rerun()
+
+        gL, gR = st.columns([3, 2])
+        with gL:
+            section_label("Arrivals per day · shaded = replayed so far")
+            ser = stream.series_to(cur, role_id)
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=ser["day"], y=ser["orders"], name="orders",
+                                 marker_color=C["fill"],
+                                 hovertemplate="%{x}: %{y:,} orders<extra></extra>"))
+            fig.add_trace(go.Scatter(x=ser["day"], y=ser["complaints"], name="complaints",
+                                     mode="lines", line=dict(color=C["critical"], width=2),
+                                     yaxis="y2",
+                                     hovertemplate="%{x}: %{y} complaints<extra></extra>"))
+            base_layout(fig, 260)
+            fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                                          tickfont=dict(size=9, color=C["muted"])),
+                              showlegend=True,
+                              legend=dict(orientation="h", y=1.12, font=dict(size=10)))
+            st.plotly_chart(fig, width="stretch", config={"displayModeBar": False},
+                            key="live_vol")
+        with gR:
+            section_label("Event ticker")
+            sev_color = {"high": C["critical_text"], "warn": C["warning_text"],
+                         "info": C["ink2"]}
+            rows = stream.recent_events(cur, role_id)
+            html = "".join(
+                f"<div style='border-bottom:1px solid {C['border']};padding:5px 0'>"
+                f"<span style='color:{C['muted']};font-size:0.72rem'>{e['day']}</span> "
+                f"<span style='color:{sev_color[e['sev']]};font-size:0.72rem;"
+                f"font-weight:700'>{e['kind']}</span><br>"
+                f"<span style='color:{C['ink']};font-size:0.86rem'>{e['text']}</span></div>"
+                for e in rows) or "<div style='color:#888'>waiting for events…</div>"
+            st.markdown(f"<div style='max-height:262px;overflow:auto'>{html}</div>",
                         unsafe_allow_html=True)
-            k4.markdown(stat_tile("Monitors breached", f"{len(breached)} / {len(status)}",
-                                  sub="rolling 7-day vs 60-day baseline",
-                                  accent=C["critical"] if breached else C["good"]),
-                        unsafe_allow_html=True)
 
-            for s in breached:
-                if s["key"] not in st.session_state.alerted:
-                    st.session_state.alerted.append(s["key"])
-                    st.toast(f"{s['label']} breached in {s['region']}", icon="🚨")
-
-            section_label("Live monitors · rolling 7-day value against the pre-incident baseline")
-            mcols = st.columns(len(status) or 1)
-            for mc, s in zip(mcols, status):
-                val = (fmt(s["current"], "INR") if s["unit"] == "INR"
-                       else f"{s['current']:.1f}%" if s["unit"] == "%"
-                       else f"{s['current']:.1f}")
-                arrow = "▲" if s["pct"] > 0 else "▼"
-                mc.markdown(stat_tile(
-                    f"{s['label']} · {s['region']}", val,
-                    delta_txt=f"{arrow} {abs(s['pct']):.1f}% vs baseline",
-                    delta_color=C["critical_text"] if s["breached"] else C["ink2"],
-                    chip="BREACHED" if s["breached"] else "normal",
-                    sub=f"worst region · z = {s['z']} · threshold ±{stream.BREACH_Z}",
-                    accent=C["critical"] if s["breached"] else C["good"]),
-                    unsafe_allow_html=True)
-
-            if breached:
-                names = ", ".join(f"{s['label']} ({s['region']})" for s in breached)
-                st.markdown(
-                    f"<div style='padding:10px 14px;border:1px solid {C['critical']}55;"
-                    f"border-left:4px solid {C['critical']};border-radius:8px;"
-                    f"background:{C['critical']}14;color:{C['ink']};font-weight:600'>"
-                    f"Threshold breached : {names}. The batch engine would open an "
-                    f"investigation at the next scan.</div>", unsafe_allow_html=True)
-                if st.button("Investigate this now", type="primary", key="live_to_inv"):
-                    st.session_state.kpi_sel = ("fulfilment_sla"
-                                                if any(s["key"] == "fulfilment_sla" for s in breached)
-                                                else "revenue")
-                    st.session_state.period = "2026-07"
-                    st.session_state._autorun = True
-                    st.session_state._nav_target = "Investigation"
-                    st.rerun()
-
-            gL, gR = st.columns([3, 2])
-            with gL:
-                section_label("Arrivals per day · shaded = replayed so far")
-                ser = stream.series_to(cur, role_id)
-                fig = go.Figure()
-                fig.add_trace(go.Bar(x=ser["day"], y=ser["orders"], name="orders",
-                                     marker_color=C["fill"],
-                                     hovertemplate="%{x}: %{y:,} orders<extra></extra>"))
-                fig.add_trace(go.Scatter(x=ser["day"], y=ser["complaints"], name="complaints",
-                                         mode="lines", line=dict(color=C["critical"], width=2),
-                                         yaxis="y2",
-                                         hovertemplate="%{x}: %{y} complaints<extra></extra>"))
-                base_layout(fig, 260)
-                fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                                              tickfont=dict(size=9, color=C["muted"])),
-                                  showlegend=True,
-                                  legend=dict(orientation="h", y=1.12, font=dict(size=10)))
-                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False},
-                                key="live_vol")
-            with gR:
-                section_label("Event ticker")
-                sev_color = {"high": C["critical_text"], "warn": C["warning_text"],
-                             "info": C["ink2"]}
-                rows = stream.recent_events(cur, role_id)
-                html = "".join(
-                    f"<div style='border-bottom:1px solid {C['border']};padding:5px 0'>"
-                    f"<span style='color:{C['muted']};font-size:0.72rem'>{e['day']}</span> "
-                    f"<span style='color:{sev_color[e['sev']]};font-size:0.72rem;"
-                    f"font-weight:700'>{e['kind']}</span><br>"
-                    f"<span style='color:{C['ink']};font-size:0.86rem'>{e['text']}</span></div>"
-                    for e in rows) or "<div style='color:#888'>waiting for events…</div>"
-                st.markdown(f"<div style='max-height:262px;overflow:auto'>{html}</div>",
-                            unsafe_allow_html=True)
-
-        live_panel()
+    live_panel()
 
 # ---------------------------------------------------------------- data explorer
 elif nav == "Data":

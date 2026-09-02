@@ -68,7 +68,9 @@ def serve():
     """Start the /metrics endpoint once per process (safe to call repeatedly)."""
     if not ENABLED or _started.is_set():
         return False
-    if os.environ.get("RATIONALE_METRICS", "1") != "1":
+    # opt-in: the Grafana/Prometheus layer is parked — set RATIONALE_METRICS=1
+    # (and `cd ops && docker compose up -d`) to re-enable the full stack
+    if os.environ.get("RATIONALE_METRICS", "0") != "1":
         return False
     # hosted platforms often forbid binding extra ports — never let that break the app
     try:

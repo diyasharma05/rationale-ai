@@ -305,10 +305,11 @@ calls/tokens/cost/latency by model, KPIs scanned/flagged. Everything no-ops if
 `ops/docker-compose.yml`: Prometheus (5s scrape) + Grafana (anonymous, embedding enabled,
 pre-provisioned datasource and dashboard). The **"Engine Operations"** dashboard: outcome
 mix, p50/p95 latency, spend, detector votes, confidence distribution, and the headline
-panel — **deterministic work vs LLM calls, the core design claim measured live**. Panels
-are embedded back into the app (theme-matched `d-solo` iframes, 5s refresh) so judges never
-leave the product; a "Generate demo traffic" button runs 9 offline investigations to
-populate them (counters are per-process and reset on restart).
+panel — **deterministic work vs LLM calls, the core design claim measured live**.
+**Status: parked/opt-in** — the layer is off by default so the demo runs as a single
+process (enable with `RATIONALE_METRICS=1` + `docker compose up -d` in `ops/`); the in-app
+telemetry pages (Under the Hood, per-run panels) are independent of it and always on.
+Counters are per-process and reset on restart.
 
 ## 12. Evaluation : measured accuracy
 

@@ -279,18 +279,24 @@ decision.
 This validates the engine's *logic* against synthetic ground truth. Real-world accuracy
 would need a client's labelled incident history.
 
-## Optional : Prometheus + Grafana observability
+## Optional : Prometheus + Grafana observability (parked, opt-in)
 
-The engine exposes its **own operational metrics** (not business KPIs — those are
-analytical, and belong in the app) at `http://localhost:9108/metrics`: investigations
-run, outcomes, gate pass/fail, detector votes, confidence distribution, deterministic
-operations by kind, LLM calls, tokens, cost and latency.
+The engine can expose its **own operational metrics** (not business KPIs — those are
+analytical, and belong in the app): investigations run, outcomes, gate pass/fail,
+detector votes, confidence distribution, deterministic operations by kind, LLM calls,
+tokens, cost and latency. **This layer is off by default** so the app runs as a single
+process with no extra services or ports. To enable it:
 
 ```bash
+# terminal 1 : run the app with the metrics endpoint on :9108
+RATIONALE_METRICS=1 streamlit run app.py     # PowerShell: $env:RATIONALE_METRICS="1"
+
+# terminal 2 : the scrape/visualisation stack
 cd ops
 docker compose up -d
 # Grafana    http://localhost:3000   (anonymous; dashboard pre-provisioned)
 # Prometheus http://localhost:9090
+docker compose down                          # stop it again
 ```
 
 The pre-built **"Rationale.AI : Engine Operations"** dashboard shows throughput and
