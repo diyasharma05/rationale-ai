@@ -118,6 +118,14 @@ st.markdown(f"""<style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
   html, body, .stApp, .stApp * {{ font-family: {FONT_BODY}; }}
+  /* the global font override must NOT touch Streamlit's icon glyphs: they are
+     Material Symbols LIGATURES — in any other font they render as literal text
+     like "expand_more" and overlap the label */
+  .stApp [data-testid="stIconMaterial"],
+  .stApp [data-testid="stExpanderToggleIcon"],
+  .stApp span[class*="material-symbols"],
+  .stApp i[class*="material-icons"] {{
+      font-family: "Material Symbols Rounded" !important; }}
   .stApp {{ background-color: {_SHELL['page']}; color: {C['ink']};
             font-size: 15px; letter-spacing: -0.006em; }}
   .stApp p, .stApp li {{ font-size: 0.94rem; line-height: 1.62; }}
