@@ -36,18 +36,26 @@ assert "reconciled" in body.lower(), "source freshness tile missing"
 assert "Est. revenue impact" in body, "overview stat row missing"
 print("   ok — pure-metrics dashboard renders")
 
-print("2) golden path (revenue, analyst, mock) — ranked drivers + actions...")
+print("2) golden path (revenue, analyst, mock) — ranked drivers + TENTATIVE...")
 at.radio[0].set_value(NAV_INV).run()
 at.button(key="run_btn").click().run()
 assert not at.exception, at.exception
 body = all_text(at)
-assert "ROOT CAUSE ESTABLISHED" in body, "golden path did not reach ACTIONS"
+# Revenue lands at TENTATIVE by design. Its own signal is marginal (-7%,
+# p~0.07) and confidence is 0.715, just under the 0.75 action gate, so the
+# engine offers low-regret steps instead of asserting a root cause. The four
+# drivers still carry the story. Pinning this stops a future change to the
+# confidence maths from silently restoring an over-claim.
+assert "TENTATIVE" in body, "golden path should be TENTATIVE, got: " + body[:300]
+assert "ROOT CAUSE ESTABLISHED" not in body, "revenue must not claim an established cause"
 assert "Ranked explanatory drivers" in body, "ranking section missing"
 assert "Decision right" in body, "decision rights missing from action cards"
 assert "North-West" in body
 infos = " ".join(str(i.value) for i in at.info)
 assert "could change" in (body + infos).lower(), "'what could change' missing"
-print("   ok — actions, ranking, decision rights, what-could-change rendered")
+# the planted marketing tracking bug must be visibly demoted to a lead
+assert "not as corroboration" in body, "unexplained-driver badge missing"
+print("   ok — tentative verdict, ranking, decision rights, unexplained lead flagged")
 
 print("3) plain-English ask box routes to a KPI...")
 at2 = new_app()

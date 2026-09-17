@@ -14,20 +14,21 @@ Three components, each independent of the z-score test and of the LLM:
    results are reproducible run to run.
 """
 import numpy as np
+from scipy import stats
 import pandas as pd
 
 from . import cache
 
-# two-sided 90% t critical values by degrees of freedom (standard for
-# directional KPI monitoring; a 95% band is looser than the z-gate itself)
-_T90 = {1: 6.314, 2: 2.920, 3: 2.353, 4: 2.132, 5: 2.015, 6: 1.943, 7: 1.895,
-        8: 1.860, 9: 1.833, 10: 1.812, 11: 1.796, 12: 1.782, 13: 1.771, 14: 1.761}
-
-
 def _t90(df: int) -> float:
-    if df in _T90:
-        return _T90[df]
-    return 1.75 if df > 14 else 6.314
+    """Two-sided 90% t critical value (standard for directional KPI
+    monitoring; a 95% band is looser than the z-gate itself).
+
+    This was a 14-entry lookup table with `1.75 if df > 14` past the end,
+    which is wrong for every df above 15 and drifts further as history
+    grows (the true value falls to 1.697 at df=30 and 1.645 asymptotically),
+    making the interval systematically too wide.
+    """
+    return float(stats.t.ppf(0.95, max(df, 1)))
 
 
 def ols_forecast(hist, horizon: int = 3) -> dict:

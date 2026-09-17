@@ -40,7 +40,7 @@ NARRATIVE_SYSTEM = (
     "VOICE RULES — the UI already displays every statistic in charts and tables, so your job "
     "is meaning, not data:\n"
     "- 'headline': one plain sentence a human would say out loud, max ~14 words.\n"
-    "- 'body': 2-4 short sentences (each under 25 words) telling the causal story in rank "
+    "- 'body': 2-4 short sentences (each under 25 words) explaining the movement in rank "
     "order. At most ONE number per sentence, rounded and conversational. No z-scores, no "
     "'deviation', no parentheses full of stats, no restating what the panels show. Write "
     "like a sharp colleague explaining it at your desk, then stop.\n"
@@ -64,7 +64,12 @@ NARRATIVE_SYSTEM = (
     "or overturn this conclusion\", "
     "\"caveats\": \"...\", \"clarifying_question\": \"... or null\", "
     "\"escalation_brief\": \"... or null\"}\n"
-    "Order the body's causal story by the provided hypothesis ranks (rank 1 first)."
+    "Order the body by the provided hypothesis ranks (rank 1 first). These ranks are an "
+    "EXPLANATORY ordering computed from concurrent movement and retrieved evidence — the "
+    "engine has not established causation, so do not write as though it has. Never claim a "
+    "driver 'caused' the movement; say it moved with it, or that the evidence points to it. "
+    "If a hypothesis is marked unexplained, present it as a lead worth checking, never as a "
+    "reason the KPI moved."
 )
 
 

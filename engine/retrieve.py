@@ -40,7 +40,7 @@ def build_query_terms(kpi_cfg: dict, focus_regions: list, driver_findings: list)
     for r in focus_regions:
         terms.append((str(r).lower(), 2.0))
     for d in driver_findings:
-        if d["status"] == "consistent":
+        if d["status"] == "co_moves":
             terms += [(t.lower(), 1.0) for t in d.get("tags", [])]
     seen, out = set(), []
     for t, w in terms:

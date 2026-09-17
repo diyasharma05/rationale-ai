@@ -25,7 +25,7 @@ os.environ.setdefault("RATIONALE_STATE",
                       os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                    "data", "state", "_eval"))
 
-from engine import anomaly, db, pyramid          # noqa: E402
+from engine import anomaly, confidence, db, pyramid, screening   # noqa: E402
 from llm.client import LLMClient                 # noqa: E402
 
 # Tracked (data/state/ is gitignored): the UI's evaluation panel must survive
@@ -44,22 +44,40 @@ GROUND_TRUTH = {
         "normal": {"aov"},
         "sparse": {"home_decor_revenue"},
         "abstain": {"marketing_conversion"},          # planted tracking bug
-        "cause": {
-            "revenue": ["sla", "fulfil", "wh-07", "deliver", "enterprise"],
-            "fulfilment_sla": ["wh-07", "conveyor", "warehouse", "sortation", "backlog"],
-            "complaint_rate": ["sla", "wh-07", "deliver", "fulfil", "late"],
-            "enterprise_active_accounts": ["sla", "churn", "deliver", "competitor",
-                                           "swiftkart", "fulfil"],
+        # The rank-1 hypothesis must be THIS driver. Substring-matching a bag
+        # of terms was close to unfailable: the label is built from the
+        # contract driver's own name ("Fulfilment SLA %" contains both "sla"
+        # and "fulfil"), so it passed the moment any declared driver ranked
+        # first. Naming the driver makes the test possible to fail.
+        "cause_driver": {
+            "revenue": "fulfilment_sla",
+            "complaint_rate": "fulfilment_sla",
+            "enterprise_active_accounts": "fulfilment_sla",
         },
+        # fulfilment_sla declares no drivers, so its cause is LLM-proposed and
+        # can only be checked on wording -- against the hypothesis LABEL only,
+        # never the narrative body (in mock mode that body is a recorded
+        # fixture which already names the cause, so scoring it would partly be
+        # scoring a cached string).
+        "cause": {
+            "fulfilment_sla": ["wh-07", "conveyor", "warehouse", "sortation", "backlog"],
+        },
+        # The planted marketing tracking bug is a MEASUREMENT artifact, not a
+        # cause of the revenue drop. It must never lead the explanation.
+        "must_not_lead": {"revenue": "marketing_conversion"},
     },
 }
 
-# Control months : nothing was planted, so ANY flag is a false positive. Three
-# of them are included deliberately — a single easy control would flatter the
-# score. June is excluded as ambiguous (the conveyor fails on the 25th).
+# Control months : nothing was planted, so ANY flag is a false positive. Five
+# of them, because a small easy control set flatters the score. 2026-02 is in
+# specifically because it produced an uncounted false positive (complaint_rate,
+# p=0.052) before multiplicity control. 2026-06 was previously excluded as
+# ambiguous since the conveyor fails on the 25th; it is included now because
+# six days of incident do not move the monthly aggregate past the bar
+# (verified: zero flags), so it is a genuine control and not a free pass.
 _CONTROL_KPIS = {"revenue", "aov", "fulfilment_sla", "complaint_rate",
                  "enterprise_active_accounts", "marketing_conversion"}
-for _m in ("2026-03", "2026-04", "2026-05"):
+for _m in ("2026-02", "2026-03", "2026-04", "2026-05", "2026-06"):
     GROUND_TRUTH[_m] = {
         "label": "Control month (no incident planted)",
         "flagged": set(), "normal": set(_CONTROL_KPIS),
@@ -73,6 +91,9 @@ def _flag_state(kpi_id, cfg, period):
                          cfg.get("min_history", 6))
     if an["sparse"]:
         return "sparse"
+    # Score what the engine actually escalates, which includes multiplicity
+    # control across the portfolio -- not the raw per-KPI threshold test.
+    an = screening.screen(an, kpi_id, ROLE, period)
     return "flagged" if an["material"] else "normal"
 
 
@@ -119,15 +140,25 @@ def evaluate():
 
             correct, note = None, ""
             terms = gt["cause"].get(kpi_id)
-            if terms:
+            want_driver = gt.get("cause_driver", {}).get(kpi_id)
+            forbid_lead = gt.get("must_not_lead", {}).get(kpi_id)
+            if want_driver or terms:
                 cause_total += 1
                 top = next((h for h in r["hypotheses"] if h.get("rank") == 1), None)
-                blob = ((top["label"] if top else "") + " " +
-                        r["narrative"].get("body", "")).lower()
-                correct = any(t in blob for t in terms)
+                top_driver = top.get("driver_id") if top else None
+                if want_driver:
+                    correct = top_driver == want_driver
+                    note = (f"rank-1 is the planted cause ({want_driver})" if correct
+                            else f"rank-1 was {top_driver}, expected {want_driver}")
+                else:
+                    label = (top["label"] if top else "").lower()
+                    correct = any(t in label for t in terms)
+                    note = ("rank-1 names the planted cause" if correct
+                            else "planted cause not identified")
+                if correct and forbid_lead and top_driver == forbid_lead:
+                    correct = False
+                    note = f"distractor {forbid_lead} led the explanation"
                 cause_hits += int(correct)
-                note = "top driver + narrative name the planted cause" if correct else \
-                       "planted cause not identified"
             elif should_abstain:
                 correct = outcome == "abstain"
                 note = "correctly abstained" if correct else f"did not abstain ({outcome})"
@@ -152,6 +183,37 @@ def evaluate():
     recall = tp / (tp + fn) if tp + fn else 1.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
+    # ---- gate separation: are the thresholds FITTED or just asserted? ----
+    # The honest test of a threshold is the margin around it. For each gate we
+    # report the widest interval over which every case still lands in the right
+    # band -- a wide interval means the exact value is not load-bearing, and a
+    # narrow one is something to disclose rather than hide.
+    should_conclude = [c["confidence"] for c in cases
+                       if c["outcome"] in ("actions", "tentative")]
+    should_not = [c["confidence"] for c in cases
+                  if c["outcome"] in ("abstain", "no_signal")]
+    gates = {
+        "evidence_gate": {
+            "value": confidence.EVIDENCE_GATE,
+            "highest_below": round(max(should_not), 3) if should_not else None,
+            "lowest_above": round(min(should_conclude), 3) if should_conclude else None,
+        },
+    }
+    g = gates["evidence_gate"]
+    if g["highest_below"] is not None and g["lowest_above"] is not None:
+        g["margin"] = round(g["lowest_above"] - g["highest_below"], 3)
+        g["safe_range"] = [g["highest_below"], g["lowest_above"]]
+    acted = sorted(c["confidence"] for c in cases if c["outcome"] == "actions")
+    tentative = sorted(c["confidence"] for c in cases if c["outcome"] == "tentative")
+    gates["action_gate"] = {
+        "value": confidence.ACTION_GATE,
+        "highest_below": round(max(tentative), 3) if tentative else None,
+        "lowest_above": round(min(acted), 3) if acted else None,
+    }
+    ga = gates["action_gate"]
+    if ga["highest_below"] is not None and ga["lowest_above"] is not None:
+        ga["margin"] = round(ga["lowest_above"] - ga["highest_below"], 3)
+        ga["safe_range"] = [ga["highest_below"], ga["lowest_above"]]
     # ---- calibration: correctness within confidence bands ----
     bands = {"< 0.60 (abstain zone)": (0.0, 0.60),
              "0.60 – 0.75 (tentative)": (0.60, 0.75),
@@ -182,6 +244,7 @@ def evaluate():
                     "accuracy": round(sum(c["correct"] for c in scored) / len(scored), 3)
                     if scored else None},
         "calibration": calibration,
+        "gates": gates,
         "runtime": {"median_ms": round(statistics.median(latencies), 1) if latencies else None,
                     "mean_llm_calls": round(statistics.mean(llm_calls), 2) if llm_calls else 0,
                     "mode": llm.mode},
@@ -210,6 +273,14 @@ def _print(r):
           f"{fa['harmful']} produced a wrong conclusion")
     print(f"OVERALL                   {r['overall']['accuracy']:.0%} across "
           f"{r['overall']['cases']} scored cases")
+    print("")
+    print("GATE SEPARATION            (a wide margin means the threshold is not load-bearing)")
+    for name, g in r["gates"].items():
+        if g.get("margin") is None:
+            print(f"  {name:24s} {g['value']:.2f}  (only one side observed)")
+            continue
+        print(f"  {name:24s} {g['value']:.2f}  margin {g['margin']:.3f} "
+              f"(nothing between {g['safe_range'][0]:.3f} and {g['safe_range'][1]:.3f})")
     print(f"\nCALIBRATION")
     for c in r["calibration"]:
         print(f"  {c['band']:<26} n={c['n']:<3} accuracy {c['accuracy']:.0%} "

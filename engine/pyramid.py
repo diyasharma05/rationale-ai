@@ -19,7 +19,7 @@ import telemetry
 from llm import fallback, prompts
 from llm.client import HAIKU, SONNET
 
-from . import anomaly, confidence, contribution, db, drivers, retrieve
+from . import anomaly, confidence, contribution, db, drivers, retrieve, screening
 
 EARLY_EXIT = 0.90
 
@@ -124,14 +124,43 @@ def _tidy_narrative(n: dict) -> dict:
     return n
 
 
+def _iforest_detail(f: dict) -> str:
+    """Describe the ML vote without implying more evidence than there is.
+
+    The features are 7-day rolling means, so consecutive days share six of
+    seven inputs. Quoting "4 of 31 days" invites reading 31 independent
+    trials; the effective sample size is nearer 31/7. The decision rule is
+    also a hardcoded >10%, and here it clears by a single day -- worth stating
+    plainly rather than presenting the verdict as clear-cut.
+    """
+    n_days, n_flag = f["n_days"], f["n_flagged"]
+    ess = max(round(n_days / 7.0, 1), 1.0)
+    rate = n_flag / n_days if n_days else 0.0
+    # smallest count that still satisfies "rate > 10%"
+    min_pass = int(0.10 * n_days) + 1
+    spare = n_flag - min_pass
+    fragility = ("one fewer anomalous day would flip this verdict" if spare <= 0
+                 else f"{spare} day(s) to spare before the verdict flips")
+    return (f"worst region {f['top_region'] or 'n/a'}: {n_flag} of {n_days} days "
+            f"anomalous ({rate:.0%} vs a >10% rule). Smoothed over 7 days, so the "
+            f"effective sample is about {ess} independent observations — {fragility}.")
+
 def _rank_hypotheses(hypotheses, driver_findings):
     """Objective 3: rank explanatory drivers. Strength blends statistical movement,
     unstructured corroboration and external confirmation : computed, not LLM-scored."""
     z_by_driver = {d["driver_id"]: abs(d["z"] or 0) for d in driver_findings}
+    unexplained = {d["driver_id"] for d in driver_findings if d.get("unexplained")}
     for h in hypotheses:
         stat = min(z_by_driver.get(h.get("driver_id"), 0) / 4.0, 1.0) if h["source"] == "driver" else 0.4
         h["strength"] = round(0.5 * stat + 0.3 * min(len(h["snippets"]) / 3.0, 1.0)
                               + 0.2 * (1.0 if h["events"] else 0.0), 2)
+        # A driver that moved but that nothing upstream explains is a lead, not
+        # an explanation -- it must not outrank a driver we can actually trace.
+        # Without this the planted marketing tracking bug, whose |z| is the
+        # largest of any driver, would lead the revenue story on sheer size.
+        if h.get("driver_id") in unexplained:
+            h["unexplained"] = True
+            h["strength"] = round(h["strength"] * confidence.UNEXPLAINED_WEIGHT, 2)
     for rank, h in enumerate(sorted(hypotheses, key=lambda x: -x["strength"]), start=1):
         h["rank"] = rank
     hypotheses.sort(key=lambda x: x["rank"])
@@ -156,6 +185,11 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     t0 = time.perf_counter()
     series = db.kpi_series(kpi_id, role_id)
     an = anomaly.analyze(series, period, cfg["materiality"], cfg.get("min_history", 6))
+    # Multiplicity control across everything this role monitors this month.
+    # A single investigation still belongs to a family of tests -- the whole
+    # portfolio is screened every period -- so the correction applies here too,
+    # not just on the dashboard.
+    an = screening.screen(an, kpi_id, role_id, period)
     result = {"kpi": kpi_id, "kpi_name": cfg["name"], "unit": cfg["unit"],
               "period": period, "role": role_id, "persona": persona,
               "series": series, "anomaly": an, "levels": levels,
@@ -199,18 +233,27 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
             "summary": _movement_str(an, cfg["unit"]),
             "gate": {"name": "Signal gate", "passed": False,
-                     "detail": (f"Within normal variation: needs |z|≥{cfg['materiality']['min_abs_z']} "
-                                f"and |Δ%|≥{cfg['materiality']['min_pct']} "
-                                f"(got z={an['z']}, Δ={an['pct_vs_recent']}%). No investigation opened : "
-                                "this is the noise filter that prevents alert fatigue.")},
+                     "detail": (
+                         (f"Cleared this KPI's own bar (z={an['z']}, Δ={an['pct_vs_recent']}%) "
+                          f"but not multiplicity control across the {an.get('family_size', 0)} KPIs "
+                          f"screened this month: q={an.get('q_value')} at FDR {screening.FDR_Q}. "
+                          "Expected to be a false alarm, so no investigation opened.")
+                         if an.get("fdr_suppressed") else
+                         (f"Within normal variation: needs |z|≥{cfg['materiality']['min_abs_z']} "
+                          f"and |Δ%|≥{cfg['materiality']['min_pct']} "
+                          f"(got z={an['z']}, Δ={an['pct_vs_recent']}%). No investigation opened : "
+                          "this is the noise filter that prevents alert fatigue."))},
         })
         result["confidence"] = confidence.score(an["z"], [], [])
         result["outcome"] = "no_signal"
         result["narrative"] = {
             "headline": f"{cfg['name']}: nothing unusual here",
-            "body": (f"{_movement_str(an, cfg['unit'], technical=False)}. That's inside this "
-                     "metric's normal range, so no investigation was opened : this is the "
-                     "filter that keeps the team from chasing noise."),
+            "body": (f"{_movement_str(an, cfg['unit'], technical=False)}. "
+                     + ("Across every metric watched this month, a movement this size is "
+                        "the kind that turns up by chance, so no investigation was opened."
+                        if an.get("fdr_suppressed") else
+                        "That's inside this metric's normal range, so no investigation was "
+                        "opened : this is the filter that keeps the team from chasing noise.")),
             "actions": [], "caveats": None, "clarifying_question": None,
             "escalation_brief": None, "_fallback": False}
         result["method_mix"] = {"sql_queries": 1, "stat_tests": 2, "ml_models": 0,
@@ -225,8 +268,14 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     driver_findings = drivers.check_drivers(cfg, an["z"], period, role_id,
                                             parent_series=series)
 
-    # --- detector ensemble (all non-LLM): z-test, OLS forecast interval, and an
-    # IsolationForest at daily grain for KPIs that opt in via the contract ---
+    # --- corroborating detectors (all non-LLM) ---
+    # Deliberately NOT called an ensemble of independent votes. The OLS check
+    # is fit on the SAME history as the z-test, with the same residual scale,
+    # so it agrees with it on essentially every case (measured r-squared < 0.06
+    # -- the "trend" it extrapolates explains almost none of the variance). It
+    # is a consistency check, not a second opinion. Only the IsolationForest,
+    # which works at daily grain per region, sees anything the monthly test
+    # cannot.
     votes = [{"detector": "z-score + materiality (statistics)",
               "flag": bool(an["material"]),
               "detail": f"z={an['z']} vs gate ±{cfg['materiality']['min_abs_z']}, "
@@ -235,7 +284,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     if fchk:
         def _n(v):  # compact number, unit stated once in the sentence
             return f"₹{v/1e5:.1f}L" if cfg["unit"].startswith("INR") else f"{v:,.1f}"
-        votes.append({"detector": "OLS trend forecast (regression, 90% interval)",
+        votes.append({"detector": "OLS trend forecast (regression, 90% interval; same history as the z-test, so not independent)",
                       "flag": bool(fchk["outside"]),
                       "detail": (f"actual {_n(an['current'])} vs expected "
                                  f"{_n(fchk['lo'])}–{_n(fchk['hi'])}")})
@@ -249,12 +298,10 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         if iforest:
             votes.append({"detector": "IsolationForest per region, daily grain (ML)",
                           "flag": bool(iforest["flagged"]),
-                          "detail": (f"worst region {iforest['top_region'] or 'n/a'}: "
-                                     f"{iforest['n_flagged']} of {iforest['n_days']} days "
-                                     f"anomalous (rule: >10%)")})
+                          "detail": _iforest_detail(iforest)})
     hypotheses = []
     for d in driver_findings:
-        if d["status"] == "consistent":
+        if d["status"] == "co_moves":
             hid = f"H{len(hypotheses)+1}"
             hypotheses.append({
                 "id": hid, "source": "driver", "driver_id": d["driver_id"],
@@ -288,7 +335,9 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
                             f"Δ={an['pct_vs_recent']}% (needs ≥{cfg['materiality']['min_pct']}%)"
                             + (f", business impact ≈ {_fmt_value(((an['current'] or 0) - (an['mean'] or 0)) * 30, 'INR')}/month"
                                if cfg["unit"] == "INR/day" else "")
-                            + f". Focus: {', '.join(contrib['focus_regions']) or 'all regions'}")},
+                            + ". Focus: " + (", ".join(contrib["focus_regions"])
+                               or "no regional concentration (movement is spread evenly, "
+                                  "which points away from a regional cause)"))},
     })
     result.update(hypotheses=hypotheses, contradictions=contradictions,
                   contribution=contrib, drivers=driver_findings)
@@ -437,10 +486,15 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         "rupee_impact": (_fmt_value(((an["current"] or 0) - (an["mean"] or 0)) * 30, "INR")
                          + " per month (approx)" if cfg["unit"] == "INR/day" else None),
         "focus_regions": contrib["focus_regions"],
+        # "diffuse" is a real finding, not a missing value: a movement spread
+        # evenly across every region argues against a regional cause and
+        # towards something systemic, such as a measurement change.
+        "regional_concentration": contrib.get("concentration"),
+        "contributions_are_additive": contrib.get("additive"),
         "top_contributions": {dim: {"values_unit": cfg.get("dim_unit", cfg["unit"]),
                                     "rows": t.head(4).to_dict("records")}
                               for dim, t in contrib["tables"].items()},
-        "hypotheses_ranked": [{k: h.get(k) for k in ("rank", "strength", "id", "source",
+        "hypotheses_ranked": [{k: h.get(k) for k in ("rank", "strength", "id", "source", "unexplained",
                                                      "label", "snippets", "events", "key_facts")}
                               for h in hypotheses],
         "contradicting_drivers": [

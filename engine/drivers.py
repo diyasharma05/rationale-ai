@@ -1,20 +1,64 @@
-"""Driver concurrency check — deterministic, non-LLM.
+"""Driver co-movement check — deterministic, non-LLM.
 
-For each driver linked in the KPI's semantic contract (another governed KPI,
-or an inline metric with its own SQL), compute the same-period z-score and
-classify it against the expected causal relation:
+What this measures, precisely: did another series move in the same period, in
+the direction the semantic contract predicts? That is CONCURRENCY, not
+causation. The causal claim is imported wholesale from the contract's
+`relation: direct|inverse` field, which a human wrote. This module contributes
+no evidence about direction of causation: there is no lag structure, no
+Granger test, no control for confounders, no counterfactual.
 
-  consistent  — driver moved (|z| >= 1.5) in the direction that would explain
-                the KPI movement
-  contradicts — driver moved in the direction that should have pushed the KPI
-                the *other* way (evidence against the driver hypothesis)
+It is still worth computing -- a declared driver that did NOT move is real
+evidence against that explanation -- but the output must never be presented as
+the engine having discovered a cause.
+
+  co_moves    — driver moved (|z| >= 1.5) in the direction that would be
+                consistent with the KPI movement, given the declared relation
+  contradicts — driver moved the other way (evidence AGAINST the hypothesis)
   quiet       — no meaningful movement
+
+A co-moving driver that is itself unexplained is flagged `unexplained`: it
+moved, but nothing it depends on accounts for why, so it is a lead rather than
+corroboration. This is what stops the planted marketing tracking bug (a
+measurement artifact whose own drivers are both quiet) from counting as
+evidence that it caused the revenue drop.
 """
 import math
 
 from . import anomaly, db, stats_ml
 
 DRIVER_Z = 1.5
+
+_LABELS = {
+    "co_moves": "moved with it, as the contract predicts (concurrent, not proven causal)",
+    "contradicts": "moved the opposite way (evidence against this explanation)",
+    "quiet": "did not move meaningfully",
+}
+
+
+def _is_unexplained(d: dict, period: str, role_id: str) -> bool:
+    """True when a co-moving driver is a governed KPI that itself moved, but
+    none of ITS declared drivers moved -- i.e. nothing upstream accounts for it.
+
+    Looks exactly one level up, never recursively. A driver with no declared
+    drivers at all is not judged here (absence of a declared chain is not
+    evidence of an unexplained movement).
+    """
+    if "kpi" not in d:
+        return False
+    contract = db.load_contract()
+    ref = contract["kpis"].get(d["kpi"], {})
+    upstream = ref.get("drivers") or []
+    if not upstream:
+        return False
+    for u in upstream:
+        if "kpi" in u:
+            series = db.kpi_series(u["kpi"], role_id)
+        else:
+            series = db.metric_series(u["metric_sql"], role_id)
+        an = anomaly.analyze(series, period, {"min_abs_z": DRIVER_Z, "min_pct": 0.0})
+        if not an["sparse"] and abs(an.get("z") or 0.0) >= DRIVER_Z:
+            return False          # something upstream does move with it
+    return True
 
 
 def _aligned_corr(parent_series, driver_series, period):
@@ -59,7 +103,7 @@ def check_drivers(kpi_cfg: dict, kpi_z: float, period: str, role_id: str,
         if not moved:
             status = "quiet"
         elif math.copysign(1, z) == expected_sign:
-            status = "consistent"
+            status = "co_moves"
         else:
             status = "contradicts"
         # Deviation from the same baseline the z-score uses. `pct` (vs the
@@ -75,6 +119,9 @@ def check_drivers(kpi_cfg: dict, kpi_z: float, period: str, role_id: str,
             "z": z, "pct": an.get("pct_vs_recent"), "pct_vs_mean": pct_vs_mean,
             "current": an.get("current"),
             "status": status,
+            "status_label": _LABELS[status],
+            "unexplained": (status == "co_moves"
+                            and _is_unexplained(d, period, role_id)),
             "corr": _aligned_corr(parent_series, series, period),
         })
     return findings

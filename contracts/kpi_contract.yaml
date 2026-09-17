@@ -27,6 +27,9 @@ sources:
 
 kpis:
   revenue:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: true
     name: "Net Revenue (daily run-rate)"
     unit: "INR/day"
     definition: >
@@ -66,6 +69,9 @@ kpis:
     access: [analyst, ceo, sales_head_north]
 
   aov:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: false
     name: "Average Order Value"
     unit: "INR"
     definition: "Net revenue divided by completed order count."
@@ -93,6 +99,9 @@ kpis:
     access: [analyst, ceo, sales_head_north]
 
   fulfilment_sla:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: false
     name: "Fulfilment SLA %"
     unit: "%"
     definition: "Share of shipments delivered within the promised window (1 - breach rate)."
@@ -120,6 +129,9 @@ kpis:
     access: [analyst, ceo, sales_head_north]
 
   complaint_rate:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: true
     name: "Complaint Rate"
     unit: "per 1000 orders"
     definition: "Support complaints per 1,000 completed orders."
@@ -156,6 +168,9 @@ kpis:
     access: [analyst, ceo, sales_head_north]
 
   enterprise_active_accounts:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: true
     name: "Enterprise Active Accounts"
     unit: "accounts"
     definition: "Distinct enterprise accounts that placed at least one order in the month."
@@ -185,6 +200,9 @@ kpis:
     access: [analyst, ceo]          # domain-restricted: not visible to regional sales heads
 
   marketing_conversion:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: false
     name: "Marketing Conversion Rate"
     unit: "%"
     definition: "Attributed conversions divided by tracked sessions (weekly source, monthly rollup)."
@@ -217,6 +235,9 @@ kpis:
     access: [analyst, ceo]          # domain-restricted: not visible to regional sales heads
 
   home_decor_revenue:
+    # Do per-member values sum to the national value? Only then is a
+    # share-of-movement meaningful; for rates we report level deltas.
+    dim_additive: true
     name: "Home-Decor Revenue (new category)"
     unit: "INR/day"
     definition: "Daily run-rate revenue for the home-decor category, launched 2026-07-15."

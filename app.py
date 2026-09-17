@@ -13,7 +13,7 @@ import yaml
 
 import feedback as fb
 import telemetry
-from engine import anomaly, confidence, db, pyramid, stats_ml, stream
+from engine import anomaly, confidence, db, pyramid, screening, stats_ml, stream
 
 try:                       # optional: observability is not required to run
     import metrics
@@ -357,8 +357,12 @@ def delta_bar(table, unit, height=260, bad_when="down"):
         x=t["delta"], y=t["member"].astype(str), orientation="h",
         marker=dict(color=colors), text=[fmt(d, unit) for d in t["delta"]],
         textposition="outside", cliponaxis=False,
-        customdata=(t["share_of_delta"] * 100).round(0),
-        hovertemplate="%{y}: %{x:,.1f} (%{customdata}% of total movement)<extra></extra>"))
+        customdata=[("" if pd.isna(s) else f" ({s * 100:.0f}% of total movement)")
+                    for s in t["share_of_delta"]],
+        # the share is omitted for non-additive KPIs (percentages, averages):
+        # per-member values do not sum to the national value, so there is no
+        # "share of the movement" to quote
+        hovertemplate="%{y}: %{x:,.1f}%{customdata}<extra></extra>"))
     base_layout(fig, height)
     fig.update_layout(bargap=0.35, margin=dict(l=8, r=70, t=8, b=8))
     fig.update_xaxes(title="Δ vs trailing-3-month baseline", title_font=dict(size=10))
@@ -395,10 +399,18 @@ def confidence_components(conf, height=118):
     order = ["evidence", "coverage", "signal"]
     labels = {"signal": "signal strength", "coverage": "driver coverage",
               "evidence": "evidence agreement"}
+    # A component can be None: this KPI declares no drivers, so coverage was
+    # not assessable. Show it as an empty rail rather than a zero bar -- "we
+    # could not check this" is a different statement from "this scored zero".
+    vals = [comps.get(k) for k in order]
     fig = go.Figure(go.Bar(
-        x=[comps[k] for k in order], y=[labels[k] for k in order], orientation="h",
+        x=[0 if v is None else v for v in vals],
+        y=[labels[k] + ("  (not assessable)" if comps.get(k) is None else "")
+           for k in order],
+        orientation="h",
         marker_color=C["fill"], marker_line=dict(color=C["series"], width=1),
-        text=[f"{comps[k]:.2f}" for k in order], textposition="outside", cliponaxis=False,
+        text=["not assessable" if v is None else f"{v:.2f}" for v in vals],
+        textposition="outside", cliponaxis=False,
         customdata=[w[k] for k in order],
         hovertemplate="%{y}: %{x:.2f} (weight %{customdata})<extra></extra>"))
     base_layout(fig, height)
@@ -508,6 +520,9 @@ def scan_kpis(role_id):
     for kpi_id, cfg in db.allowed_kpis(role_id).items():
         s = db.kpi_series(kpi_id, role_id)
         an = anomaly.analyze(s, PERIOD, cfg["materiality"], cfg.get("min_history", 6))
+        # Same multiplicity control the investigation applies, so the
+        # dashboard and the verdict can never disagree about what is flagged.
+        an = screening.screen(an, kpi_id, role_id, PERIOD)
         out[kpi_id] = (cfg, s, an)
     return out
 
@@ -1245,6 +1260,9 @@ elif nav == "Investigation":
                 facts.append(f"**{an['pct_vs_recent']:+.1f}%** vs recent months")
             if imp is not None:
                 facts.append(f"≈ **{fmt(imp, 'INR')}/month** vs baseline")
+            if not is_exec and an.get("q_value") is not None:
+                facts.append(f"p = **{an['p_value']:.3f}**, q = **{an['q_value']:.3f}** "
+                             f"(FDR-controlled across {an.get('family_size', 0)} KPIs)")
             elif not is_exec and an["z"] is not None:
                 facts.append(f"z = **{an['z']}**")
             st.markdown("  \n".join(facts))
@@ -1278,6 +1296,12 @@ elif nav == "Investigation":
                             st.write(s["text"][:500])
         else:
             st.write(n["body"])
+        for h in r.get("hypotheses", []):
+            if h.get("unexplained"):
+                st.markdown(badge(
+                    f"⚠ {h['label'].split(' moved')[0]} moved with this KPI, but nothing "
+                    "upstream explains why it moved : treated as a lead, not as "
+                    "corroboration", C["warning_text"]), unsafe_allow_html=True)
         for d in r.get("contradictions", []):
             st.markdown(badge(f"✗ contradicting driver: {d['label']} moved the wrong way "
                               f"(z={d['z']:.1f})", C["critical_text"]), unsafe_allow_html=True)
@@ -1293,7 +1317,11 @@ elif nav == "Investigation":
             section_label("Where the movement sits · by region, vs 3-month baseline")
             dim_unit = cfg.get("dim_unit", r["unit"])
             bad_when = "up" if cfg.get("good_direction", "up") == "down" else "down"
-            if r["unit"] in ("INR/day", "INR", "accounts"):
+            if (r.get("contribution") or {}).get("concentration") == "diffuse":
+                st.caption("No region stands out : the movement is spread evenly across "
+                           "all of them, which argues against a regional cause and "
+                           "towards something systemic (a process or measurement change).")
+            if cfg.get("dim_additive", True):
                 st.plotly_chart(contribution_waterfall(reg_table, r["unit"]), width="stretch",
                                 config={"displayModeBar": False}, key=f"wf_{kpi_id}")
             else:
