@@ -46,7 +46,7 @@ def _daily_region(role_id: str) -> pd.DataFrame:
            COALESCE(c.complaints,0) complaints
     FROM o LEFT JOIN f ON o.d=f.d AND o.region=f.region
            LEFT JOIN c ON o.d=c.d AND o.region=c.region ORDER BY 1,2"""
-    df = db.get_conn().execute(sql).fetchdf()
+    df = db.query(sql)
     df["day"] = pd.to_datetime(df["day"]).dt.date
     return df
 
@@ -128,14 +128,26 @@ def live_status(cursor: date, role_id: str) -> list:
 
 def recent_events(cursor: date, role_id: str, days_back: int = 3, limit: int = 14) -> list:
     """The event ticker: real rows landing in the last few simulated days."""
+    # Copy: the cached list is shared, and a caller must not be able to
+    # mutate the next reader's ticker.
+    return list(_recent_events(cursor, role_id, days_back, limit))
+
+
+@lru_cache(maxsize=256)
+def _recent_events(cursor: date, role_id: str, days_back: int, limit: int) -> tuple:
+    """Cached by (cursor, role_id): the replay window is a fixed 44 days, so
+    every frame is a pure function of the cursor. This ran three uncached
+    DuckDB queries on a 1.1s timer -- roughly a 66% duty cycle on one core for
+    a 14-row ticker. role_id is in the key, so RBAC scoping cannot be defeated
+    by a cache hit."""
     where = db.role_where(role_id)
     lo = cursor - timedelta(days=days_back - 1)
     rows = []
-    crm = db.get_conn().execute(f"""
+    crm = db.query(f"""
         SELECT event_date d, region, event_type, account_name, note FROM crm_events
         WHERE CAST(event_date AS DATE) BETWEEN DATE '{lo}' AND DATE '{cursor}'
           AND event_type IN ('complaint','churn') {where}
-        ORDER BY CAST(event_date AS DATE) DESC LIMIT 40""").fetchdf()
+        ORDER BY CAST(event_date AS DATE) DESC LIMIT 40""")
     for _, r in crm.iterrows():
         if r["event_type"] == "churn":
             rows.append({"day": str(r["d"]), "sev": "high", "kind": "CHURN",
@@ -144,26 +156,26 @@ def recent_events(cursor: date, role_id: str, days_back: int = 3, limit: int = 1
         else:
             rows.append({"day": str(r["d"]), "sev": "warn", "kind": "COMPLAINT",
                          "text": f"{str(r['note']).capitalize()} · {r['region']}"})
-    ops = db.get_conn().execute(f"""
+    ops = db.query(f"""
         SELECT ship_date d, region, shipments, sla_breaches FROM ops_fulfilment
         WHERE CAST(ship_date AS DATE) BETWEEN DATE '{lo}' AND DATE '{cursor}'
           AND sla_breaches > 0 {where}
-        ORDER BY sla_breaches DESC LIMIT 12""").fetchdf()
+        ORDER BY sla_breaches DESC LIMIT 12""")
     for _, r in ops.iterrows():
         rate = r["sla_breaches"] / max(int(r["shipments"]), 1)
         rows.append({"day": str(r["d"]), "sev": "warn" if rate > 0.15 else "info",
                      "kind": "FULFILMENT",
                      "text": f"{int(r['sla_breaches'])} of {int(r['shipments'])} shipments "
                              f"missed SLA · {r['region']}"})
-    orders = db.get_conn().execute(f"""
+    orders = db.query(f"""
         SELECT order_date d, region, segment, order_value, account FROM sales_orders
         WHERE CAST(order_date AS DATE) BETWEEN DATE '{lo}' AND DATE '{cursor}'
           AND segment = 'enterprise' {where}
-        ORDER BY order_value DESC LIMIT 10""").fetchdf()
+        ORDER BY order_value DESC LIMIT 10""")
     for _, r in orders.iterrows():
         acct = str(r["account"]).split("|")[-1] if r["account"] else "—"
         rows.append({"day": str(r["d"]), "sev": "info", "kind": "ORDER",
                      "text": f"Enterprise order ₹{r['order_value']:,.0f} · "
                              f"{db.mask_text(acct, role_id)} ({r['region']})"})
     rows.sort(key=lambda x: x["day"], reverse=True)
-    return rows[:limit]
+    return tuple(rows[:limit])

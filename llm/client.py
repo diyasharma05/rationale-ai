@@ -20,6 +20,9 @@ import telemetry
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = os.path.join(BASE, "llm", "fixtures")
 
+LIVE_TIMEOUT_S = 20.0
+LIVE_MAX_RETRIES = 1
+
 HAIKU = "claude-haiku-4-5"
 SONNET = "claude-sonnet-5"
 
@@ -50,7 +53,13 @@ class LLMClient:
         self._client = None
         if not self.mock:
             import anthropic
-            self._client = anthropic.Anthropic()
+            # Bound the live path. The SDK defaults to 2 retries x a 10-minute
+            # timeout, so a stalled venue network can block the Streamlit
+            # spinner for ~30 minutes with no way out. One retry at 20s means a
+            # dead connection degrades to the fixture/fallback path in well
+            # under a minute, which is what the offline design is for.
+            self._client = anthropic.Anthropic(timeout=LIVE_TIMEOUT_S,
+                                               max_retries=LIVE_MAX_RETRIES)
 
     @property
     def mode(self) -> str:

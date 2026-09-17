@@ -1,7 +1,9 @@
 # Upper bounds are deliberate: hosted platforms resolve to the newest release,
 # and an unreviewed major (pandas 4, plotly 8, anthropic 2 …) should not be able
 # to break a deployed demo. Verified on Python 3.12 / 3.13.
-streamlit>=1.37,<2
+# >=1.49: the app uses width="stretch" on charts/buttons/dataframes and
+# st.spinner(show_time=True). Resolving lower raises TypeError on first render.
+streamlit>=1.49,<2
 duckdb>=1.0,<2
 pandas>=2.0,<4
 numpy>=1.26,<3
@@ -9,5 +11,8 @@ anthropic>=0.40,<2
 pyyaml>=6.0,<7
 plotly>=5.20,<8
 scikit-learn>=1.4,<2
+# already present transitively via scikit-learn; declared because the
+# engine imports it directly for t-distribution / FDR work
+scipy>=1.11,<2
 python-dotenv>=1.0,<2
 prometheus_client>=0.20,<1

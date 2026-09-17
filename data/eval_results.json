@@ -1,0 +1,274 @@
+{
+  "generated_at": "2026-09-17 22:04:54",
+  "periods": {
+    "2026-07": "Incident month (WH-07 conveyor failure, competitor launch)",
+    "2026-03": "Control month (no incident planted)",
+    "2026-04": "Control month (no incident planted)",
+    "2026-05": "Control month (no incident planted)"
+  },
+  "detection": {
+    "tp": 5,
+    "fp": 1,
+    "fn": 0,
+    "tn": 18,
+    "precision": 0.833,
+    "recall": 1.0,
+    "f1": 0.909,
+    "sparse_handled": "4/4"
+  },
+  "root_cause": {
+    "hits": 4,
+    "total": 4,
+    "accuracy": 1.0
+  },
+  "abstention": {
+    "correct": 1,
+    "expected": 1,
+    "false_abstentions": 0
+  },
+  "false_alarm_impact": {
+    "contained": 1,
+    "harmful": 0
+  },
+  "overall": {
+    "cases": 24,
+    "accuracy": 0.958
+  },
+  "calibration": [
+    {
+      "band": "< 0.60 (abstain zone)",
+      "n": 20,
+      "accuracy": 0.95,
+      "mean_confidence": 0.266
+    },
+    {
+      "band": ">= 0.75 (actions)",
+      "n": 4,
+      "accuracy": 1.0,
+      "mean_confidence": 0.912
+    }
+  ],
+  "runtime": {
+    "median_ms": 6.0,
+    "mean_llm_calls": 0.42,
+    "mode": "mock"
+  },
+  "cases": [
+    {
+      "period": "2026-07",
+      "kpi": "aov",
+      "kpi_name": "Average Order Value",
+      "outcome": "no_signal",
+      "confidence": 0.271,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-07",
+      "kpi": "complaint_rate",
+      "kpi_name": "Complaint Rate",
+      "outcome": "actions",
+      "confidence": 0.995,
+      "correct": true,
+      "note": "top driver + narrative name the planted cause"
+    },
+    {
+      "period": "2026-07",
+      "kpi": "enterprise_active_accounts",
+      "kpi_name": "Enterprise Active Accounts",
+      "outcome": "actions",
+      "confidence": 1.0,
+      "correct": true,
+      "note": "top driver + narrative name the planted cause"
+    },
+    {
+      "period": "2026-07",
+      "kpi": "fulfilment_sla",
+      "kpi_name": "Fulfilment SLA %",
+      "outcome": "actions",
+      "confidence": 0.825,
+      "correct": true,
+      "note": "top driver + narrative name the planted cause"
+    },
+    {
+      "period": "2026-07",
+      "kpi": "marketing_conversion",
+      "kpi_name": "Marketing Conversion Rate",
+      "outcome": "abstain",
+      "confidence": 0.35,
+      "correct": true,
+      "note": "correctly abstained"
+    },
+    {
+      "period": "2026-07",
+      "kpi": "revenue",
+      "kpi_name": "Net Revenue (daily run-rate)",
+      "outcome": "actions",
+      "confidence": 0.827,
+      "correct": true,
+      "note": "top driver + narrative name the planted cause"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "aov",
+      "kpi_name": "Average Order Value",
+      "outcome": "no_signal",
+      "confidence": 0.246,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "complaint_rate",
+      "kpi_name": "Complaint Rate",
+      "outcome": "no_signal",
+      "confidence": 0.213,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "enterprise_active_accounts",
+      "kpi_name": "Enterprise Active Accounts",
+      "outcome": "no_signal",
+      "confidence": 0.244,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "fulfilment_sla",
+      "kpi_name": "Fulfilment SLA %",
+      "outcome": "no_signal",
+      "confidence": 0.321,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "marketing_conversion",
+      "kpi_name": "Marketing Conversion Rate",
+      "outcome": "no_signal",
+      "confidence": 0.188,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-03",
+      "kpi": "revenue",
+      "kpi_name": "Net Revenue (daily run-rate)",
+      "outcome": "no_signal",
+      "confidence": 0.29,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "aov",
+      "kpi_name": "Average Order Value",
+      "outcome": "no_signal",
+      "confidence": 0.316,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "complaint_rate",
+      "kpi_name": "Complaint Rate",
+      "outcome": "abstain",
+      "confidence": 0.543,
+      "correct": false,
+      "note": "false alarm, but CONTAINED : the evidence gate refused to state a cause"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "enterprise_active_accounts",
+      "kpi_name": "Enterprise Active Accounts",
+      "outcome": "no_signal",
+      "confidence": 0.238,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "fulfilment_sla",
+      "kpi_name": "Fulfilment SLA %",
+      "outcome": "no_signal",
+      "confidence": 0.223,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "marketing_conversion",
+      "kpi_name": "Marketing Conversion Rate",
+      "outcome": "no_signal",
+      "confidence": 0.188,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-04",
+      "kpi": "revenue",
+      "kpi_name": "Net Revenue (daily run-rate)",
+      "outcome": "no_signal",
+      "confidence": 0.225,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "aov",
+      "kpi_name": "Average Order Value",
+      "outcome": "no_signal",
+      "confidence": 0.267,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "complaint_rate",
+      "kpi_name": "Complaint Rate",
+      "outcome": "no_signal",
+      "confidence": 0.197,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "enterprise_active_accounts",
+      "kpi_name": "Enterprise Active Accounts",
+      "outcome": "no_signal",
+      "confidence": 0.233,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "fulfilment_sla",
+      "kpi_name": "Fulfilment SLA %",
+      "outcome": "no_signal",
+      "confidence": 0.269,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "marketing_conversion",
+      "kpi_name": "Marketing Conversion Rate",
+      "outcome": "no_signal",
+      "confidence": 0.281,
+      "correct": true,
+      "note": "correctly treated as noise"
+    },
+    {
+      "period": "2026-05",
+      "kpi": "revenue",
+      "kpi_name": "Net Revenue (daily run-rate)",
+      "outcome": "no_signal",
+      "confidence": 0.211,
+      "correct": true,
+      "note": "correctly treated as noise"
+    }
+  ]
+}

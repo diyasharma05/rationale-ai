@@ -55,6 +55,12 @@ if not os.path.exists(os.path.join(DATA_DIR, "sales_orders.csv")):
         st.code(traceback.format_exc(), language="text")
         st.stop()
 
+# data/state/ is gitignored, so a fresh clone or a hosted deploy starts with no
+# ledger at all - which silently changes Level-2 retrieval (the seeded Nov-2025
+# precedent drops out of the corpus and the [E#] ranks shift). Seed it at boot
+# so every machine reasons over the same corpus.
+fb.ensure_state()
+
 
 # --- validated reference palette (dataviz method), theme-aware ---
 def _theme_base():
@@ -119,7 +125,11 @@ FONT_BODY = "IBM Plex Sans, -apple-system, Segoe UI, system-ui, sans-serif"
 FONT_MONO = "IBM Plex Mono, Cascadia Code, Consolas, monospace"
 
 st.markdown(f"""<style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  /* No webfont @import: it was the only external network call in the UI, and
+     a captive portal or hanging DNS at the venue would stall first paint on a
+     render-blocking stylesheet fetch. The stacks below fall back to Segoe UI /
+     system-ui, and pick up IBM Plex automatically when it is installed locally
+     (install the fonts on the demo machine to keep the exact brand look). */
 
   html, body, .stApp, .stApp * {{ font-family: {FONT_BODY}; }}
   /* the global font override must NOT touch Streamlit's icon glyphs: they are
@@ -707,7 +717,12 @@ if nav in ("Dashboard", "Data", "Investigation"):
 # ---------------------------------------------------------------- dashboard
 if nav == "Dashboard":
     _t0 = time.perf_counter()
-    scan = scan_kpis(role_id)
+    try:
+        scan = scan_kpis(role_id)
+    except Exception as e:
+        st.error(f"Could not compute the KPI scan: {e}")
+        st.caption("The deterministic layer failed — check the data sources under Data.")
+        st.stop()
     _scan_ms = (time.perf_counter() - _t0) * 1000
     kpi_ids = severity_order(scan)
     metrics.record_scan(PERIOD, role_id, len(kpi_ids),
@@ -947,7 +962,14 @@ elif nav == "Live Feed":
             nxt = st.session_state.sc + pd.Timedelta(days=speed).to_pytimedelta()
             st.session_state.sc = stream.clamp(nxt)
             if st.session_state.sc >= stream.REPLAY_END:
+                # End of tape. `run_every` was bound when the fragment was
+                # decorated by the OUTER script, so clearing the flag in here
+                # does not stop the timer: the fragment kept polling (and doing
+                # real DuckDB work) every 1.1s for the rest of the session, while
+                # the transport rail outside still showed 'Pause'. Rerun at app
+                # scope so the fragment is re-decorated with run_every=None.
                 st.session_state.playing = False
+                st.rerun()
         cur = st.session_state.sc
         tot = stream.totals_to(cur, role_id)
         status = stream.live_status(cur, role_id)
@@ -1057,14 +1079,14 @@ elif nav == "Data":
                "against the same tables the engine reads, with this role's row-level "
                "security applied : nothing is precomputed.")
 
-    _DATE_COLS = {"sales_orders": "order_date", "ops_fulfilment": "ship_date",
-                  "crm_events": "event_date", "marketing_weekly": "week_start"}
+    _DATE_COLS = db.DATE_COLS      # single source: engine/db.py
     fresh = db.source_freshness()
     c1, c2, c3 = st.columns([2, 1, 2])
     src = c1.selectbox("Source", list(_DATE_COLS),
                        format_func=lambda s: f"{fresh[s]['system']}  ·  {s}")
     grain = c2.radio("Grain", ["day", "week", "month"], index=2, horizontal=True)
-    dmin, dmax = pd.Timestamp("2025-08-01").date(), pd.Timestamp(fresh[src]["as_of"]).date()
+    dmax = pd.Timestamp(fresh[src]["as_of"]).date()
+    dmin = min(pd.Timestamp("2025-08-01").date(), dmax)   # never let min exceed max
     drange = c3.slider("Time range", min_value=dmin, max_value=dmax, value=(dmin, dmax),
                        format="YYYY-MM-DD")
 
@@ -1074,10 +1096,14 @@ elif nav == "Data":
                f"FROM {src} WHERE CAST({col} AS DATE) BETWEEN DATE '{drange[0]}' "
                f"AND DATE '{drange[1]}'{where} GROUP BY 1 ORDER BY 1")
     t0 = time.perf_counter()
-    vol = db.get_conn().execute(vol_sql).fetchdf()
-    latest = db.get_conn().execute(
-        f"SELECT * FROM {src} WHERE CAST({col} AS DATE) BETWEEN DATE '{drange[0]}' "
-        f"AND DATE '{drange[1]}'{where} ORDER BY CAST({col} AS DATE) DESC LIMIT 50").fetchdf()
+    try:
+        vol = db.query(vol_sql)
+        latest = db.query(
+            f"SELECT * FROM {src} WHERE CAST({col} AS DATE) BETWEEN DATE '{drange[0]}' "
+            f"AND DATE '{drange[1]}'{where} ORDER BY CAST({col} AS DATE) DESC LIMIT 50")
+    except Exception as e:
+        st.error(f"Query failed: {e}")
+        st.stop()
     q_ms = (time.perf_counter() - t0) * 1000
     total_rows = int(vol["rows_"].sum()) if not vol.empty else 0
 
@@ -1125,9 +1151,16 @@ elif nav == "Investigation":
     ids = list(kpis)
 
     # --- ask in plain English (LLM-assisted intent understanding) ---
-    q = st.text_input("Ask a question in plain English", key="ask_box",
-                      placeholder='e.g. "Why did revenue fall in July?" or "What happened to complaints?"')
-    if q:
+    with st.form("ask_form", border=False):
+        q = st.text_input("Ask a question in plain English", key="ask_box",
+                          placeholder='e.g. "Why did revenue fall in July?" or "What happened to complaints?"')
+        asked = st.form_submit_button("Ask")
+    # Gated on submit. `if q:` re-ran on every rerun while text stayed in the
+    # box: it re-set kpi_sel before the selectbox existed (so the dropdown
+    # snapped back and could not be changed by hand), auto-ran a new
+    # investigation whenever the period changed, and in live mode fired a
+    # blocking Haiku intent call on every single widget interaction.
+    if q and asked:
         matched, how = match_kpi(q, kpis)
         if matched is None and llm.mode == "live":
             data = llm.json_call("intent", prompts.INTENT_SYSTEM,
@@ -1150,14 +1183,22 @@ elif nav == "Investigation":
 
     key = (kpi_id, role_id, PERIOD)
     c1, c2 = st.columns([1, 5])
-    run = c1.button("▶ Run investigation", type="primary", key="run_btn") \
-        or st.session_state.pop("_autorun", False)
+    # pop FIRST: `or` short-circuits, so clicking the button left the flag
+    # set and the investigation re-fired on the next rerun.
+    autorun = st.session_state.pop("_autorun", False)
+    run = c1.button("▶ Run investigation", type="primary", key="run_btn") or autorun
     if c2.button("Re-run (ignore cache)", key="rerun_btn"):
         st.session_state.investigations.pop(key, None)
         run = True
     if run and key not in st.session_state.investigations:
-        with st.spinner("🧭 Investigation in progress…", show_time=True):
-            result = pyramid.investigate(kpi_id, PERIOD, role_id, llm)
+        try:
+            with st.spinner("🧭 Investigation in progress…", show_time=True):
+                result = pyramid.investigate(kpi_id, PERIOD, role_id, llm)
+        except Exception as e:
+            st.error(f"The investigation could not complete: {e}")
+            st.caption("Nothing was concluded, so nothing is shown : the engine fails "
+                       "closed rather than presenting a partial answer.")
+            st.stop()
         st.session_state.investigations[key] = result
         st.toast(f"Investigation complete in {result.get('wall_ms', 0)/1000:.1f}s", icon="✅")
 
@@ -1173,7 +1214,7 @@ elif nav == "Investigation":
             "abstain": ("⛔ ABSTAINED : evidence insufficient/contradictory; escalated to a human expert", C["critical"]),
             "sparse": ("◔ TOO NEW TO DIAGNOSE : monitoring with widened bands", C["warning"]),
             "no_signal": ("✓ NO SIGNAL : movement within normal variation", C["good"]),
-        }[r["outcome"]]
+        }.get(r["outcome"], (f"• {r['outcome'].upper()}", C["ink2"]))
 
         # ---- verdict row: the metric's own chart + the decision, side by side ----
         section_label("The verdict")
@@ -1305,7 +1346,7 @@ elif nav == "Investigation":
                     st.markdown(f"**{gate['name']} : {'passed' if gate['passed'] else 'failed'}.** "
                                 f"{gate['detail']}")
                 if str(lv["level"]) == "1" and gate and not an["sparse"] \
-                        and an.get("z") is not None:
+                        and an.get("z") is not None and not is_exec:
                     st.plotly_chart(gate_bullets(an, cfg), width="stretch",
                                     config={"displayModeBar": False},
                                     key=f"gatebul_{kpi_id}")
@@ -1407,11 +1448,24 @@ elif nav == "Decision Ledger":
     st.caption("Every investigation, conclusion, confidence score and user correction is appended "
                "here. Past-period entries are part of the Level-2 retrieval corpus, so the engine "
                "recalls precedent : the RECALL step and the learning loop.")
-    entries = fb.read_ledger()
+    try:
+        entries = fb.read_ledger()
+    except Exception as e:
+        entries = []
+        st.error(f"Could not read the decision ledger: {e}")
+    # Column- and domain-security are applied HERE, at read time for the viewing
+    # role — entries were masked for whoever ran the investigation, which is a
+    # different role than whoever is reading the page now.
+    visible_kpis = set(db.allowed_kpis(role_id)) | {"feedback"}
+    entries = [e for e in entries if e.get("kpi") in visible_kpis]
+    for e in entries:
+        e["summary"] = db.mask_text(str(e.get("summary", "")), role_id)
     if entries:
         df = pd.DataFrame(entries)[::-1]
         st.dataframe(df[["id", "timestamp", "kpi", "period", "outcome", "confidence", "summary"]],
                      hide_index=True, width="stretch", height=420)
+        st.caption(f"Showing {len(entries)} entries visible to **{role_id}** : "
+                   "masked and domain-filtered for this role.")
     else:
         st.info("Ledger empty : run an investigation.")
 
@@ -1472,10 +1526,19 @@ elif nav == "Under the Hood":
     st.caption("The generator plants known causes, so we have ground truth. This is the "
                "engine scored against it across an incident month and three control "
                "months — regenerate any time with `python eval.py`.")
-    _ev_path = os.path.join(DATA_DIR, "state", "eval_results.json")
+    _ev_path = os.path.join(DATA_DIR, "eval_results.json")
+    if not os.path.exists(_ev_path):        # legacy location
+        _ev_path = os.path.join(DATA_DIR, "state", "eval_results.json")
+    ev = None
     if os.path.exists(_ev_path):
         import json as _json
-        ev = _json.load(open(_ev_path, encoding="utf-8"))
+        try:
+            with open(_ev_path, encoding="utf-8") as _f:
+                ev = _json.load(_f)
+        except Exception as e:
+            ev = None
+            st.warning(f"Could not read evaluation results: {e}")
+    if ev:
         d, rc, ab, fa = (ev["detection"], ev["root_cause"], ev["abstention"],
                          ev.get("false_alarm_impact", {}))
         e1, e2, e3, e4 = st.columns(4)
@@ -1526,7 +1589,8 @@ elif nav == "Under the Hood":
 
     st.subheader("Semantic contract (governed KPI definitions)")
     contract = db.load_contract()
-    kpi_pick = st.selectbox("KPI", list(contract["kpis"]),
+    _visible = db.allowed_kpis(role_id)          # domain-level RBAC, not all 7
+    kpi_pick = st.selectbox("KPI", list(_visible),
                             format_func=lambda k: contract["kpis"][k]["name"])
     st.code(yaml.dump({kpi_pick: contract["kpis"][kpi_pick]}, sort_keys=False,
                       allow_unicode=True), language="yaml")

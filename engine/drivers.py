@@ -62,10 +62,18 @@ def check_drivers(kpi_cfg: dict, kpi_z: float, period: str, role_id: str,
             status = "consistent"
         else:
             status = "contradicts"
+        # Deviation from the same baseline the z-score uses. `pct` (vs the
+        # trailing 3 months) can disagree in sign with z (vs the long-run mean),
+        # and status is decided by z — so any label that pairs z's direction
+        # with pct's magnitude can contradict itself.
+        mean, cur = an.get("mean"), an.get("current")
+        pct_vs_mean = ((cur - mean) / abs(mean) * 100
+                       if mean not in (None, 0) and cur is not None else None)
         findings.append({
             "driver_id": driver_id, "label": label, "relation": d["relation"],
             "note": d.get("note", ""), "tags": tags,
-            "z": z, "pct": an.get("pct_vs_recent"), "current": an.get("current"),
+            "z": z, "pct": an.get("pct_vs_recent"), "pct_vs_mean": pct_vs_mean,
+            "current": an.get("current"),
             "status": status,
             "corr": _aligned_corr(parent_series, series, period),
         })

@@ -8,7 +8,9 @@ import os
 from datetime import datetime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-STATE = os.path.join(BASE, "data", "state")
+# RATIONALE_STATE lets tests and eval.py point at a throwaway directory, so a
+# test run never appends to the ledger it is measuring.
+STATE = os.environ.get("RATIONALE_STATE") or os.path.join(BASE, "data", "state")
 LEDGER = os.path.join(STATE, "decision_ledger.jsonl")
 FEEDBACK = os.path.join(STATE, "feedback.jsonl")
 
@@ -37,6 +39,19 @@ def reset_ledger():
         f.write(json.dumps(SEED_ENTRY) + "\n")
     if os.path.exists(FEEDBACK):
         os.remove(FEEDBACK)
+
+
+def ensure_state():
+    """Seed the ledger if it is missing.
+
+    data/state/ is gitignored, so a fresh clone (and every hosted deploy) starts
+    with no ledger at all. That silently changes Level-2 retrieval — the seeded
+    Nov-2025 precedent drops out of the corpus and the [E#] ranks shift — so the
+    same fixture can cite a different document than it did on the dev laptop.
+    Seeding at boot keeps every machine on the same corpus.
+    """
+    if not os.path.exists(LEDGER):
+        reset_ledger()
 
 
 def log_investigation(result: dict) -> str:
@@ -68,7 +83,18 @@ def log_feedback(inv_id: str, vote: str, comment: str = ""):
 
 
 def read_ledger():
+    """Tolerant of a torn line: an interrupted append (or a concurrent eval.py
+    run) must not permanently break every investigation, since the ledger is
+    also the Level-2 retrieval corpus."""
     if not os.path.exists(LEDGER):
         return []
+    out = []
     with open(LEDGER, encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return out

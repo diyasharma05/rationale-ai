@@ -17,11 +17,21 @@ import statistics
 import time
 
 os.environ.setdefault("MOCK_MODE", "1")
+# Score against a throwaway ledger: investigate() appends one entry per run,
+# and the ledger is itself part of the Level-2 retrieval corpus — so without
+# this, consecutive eval runs are not independent and the harness pollutes
+# the very corpus it is measuring.
+os.environ.setdefault("RATIONALE_STATE",
+                      os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "data", "state", "_eval"))
 
 from engine import anomaly, db, pyramid          # noqa: E402
 from llm.client import LLMClient                 # noqa: E402
 
-OUT = os.path.join("data", "state", "eval_results.json")
+# Tracked (data/state/ is gitignored): the UI's evaluation panel must survive
+# a fresh clone and a hosted deploy.
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                   "data", "eval_results.json")
 
 # ---------------------------------------------------------------- ground truth
 # What the generator actually planted. `cause` lists terms that must appear in

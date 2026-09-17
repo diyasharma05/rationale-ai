@@ -4,6 +4,7 @@ never in the UI.
 """
 import hashlib
 import os
+import threading
 from functools import lru_cache
 
 import duckdb
@@ -13,7 +14,13 @@ import yaml
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(BASE, "data")
 
-_VIEWS = {
+# source table -> (csv file, its date column). The date column is cast ONCE at
+# load time; every contract query still says CAST(col AS DATE), which is then a
+# free no-op instead of a per-row string parse on every execution.
+DATE_COLS = {"sales_orders": "order_date", "ops_fulfilment": "ship_date",
+             "crm_events": "event_date", "marketing_weekly": "week_start"}
+
+_SOURCES = {
     "sales_orders": "sales_orders.csv",
     "ops_fulfilment": "ops_fulfilment.csv",
     "crm_events": "crm_events.csv",
@@ -21,16 +28,47 @@ _VIEWS = {
 }
 
 _conn = None
+_conn_lock = threading.Lock()
+
+
+def _build():
+    """Materialize the CSV sources as typed TABLEs.
+
+    Deliberately tables, not views: a view over read_csv_auto() re-parses the
+    whole file on *every* query (~54 ms per call against an 85k-row CSV, with no
+    warm-up benefit). One build at startup costs ~200 ms and makes every
+    subsequent query a scan of an in-memory table.
+    """
+    conn = duckdb.connect()
+    for table, fname in _SOURCES.items():
+        path = os.path.join(DATA, fname).replace("\\", "/")
+        col = DATE_COLS[table]
+        conn.execute(
+            f"CREATE TABLE {table} AS SELECT * REPLACE (CAST({col} AS DATE) AS {col}) "
+            f"FROM read_csv_auto('{path}')")
+    return conn
 
 
 def get_conn():
+    """The process-wide DuckDB handle. Built once, under a lock: Streamlit runs
+    each session's script in its own thread, so an unguarded check-then-set here
+    lets two threads both build the tables."""
     global _conn
     if _conn is None:
-        _conn = duckdb.connect()
-        for view, fname in _VIEWS.items():
-            path = os.path.join(DATA, fname).replace("\\", "/")
-            _conn.execute(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM read_csv_auto('{path}')")
+        with _conn_lock:
+            if _conn is None:          # re-check with the lock held
+                _conn = _build()
     return _conn
+
+
+def query(sql: str, params=()) -> pd.DataFrame:
+    """Execute on a per-call cursor over the shared database.
+
+    DuckDB's documented pattern for concurrent use: one database, a cursor per
+    thread. Sharing the top-level connection across Streamlit session threads
+    interleaves result sets. Every read in the codebase should come through here.
+    """
+    return get_conn().cursor().execute(sql, params).fetchdf()
 
 
 @lru_cache(maxsize=1)
@@ -64,7 +102,7 @@ def allowed_kpis(role_id: str):
 # ---------------- series queries ----------------
 
 def _run(sql: str) -> pd.DataFrame:
-    df = get_conn().execute(sql).fetchdf()
+    df = query(sql)
     if "period" in df.columns:
         df["period"] = pd.to_datetime(df["period"]).dt.strftime("%Y-%m")
         df = df.sort_values("period").reset_index(drop=True)
@@ -86,10 +124,14 @@ def kpi_series(kpi_id: str, role_id: str) -> pd.DataFrame:
 def revenue_daily(role_id: str) -> pd.DataFrame:
     """Daily-grain revenue by region — the training/scoring set for the
     IsolationForest cross-check."""
+    # ORDER BY 1, 2 (not just 1): ordering by date alone leaves same-day rows
+    # in whatever order the parallel aggregation produced, so the frame
+    # differed run to run. Harmless for the model, which re-sorts, but it
+    # made any content hash of this result unstable.
     sql = ("SELECT CAST(order_date AS DATE) AS date, region, SUM(order_value) AS value "
-           "FROM sales_orders WHERE 1=1 {where} GROUP BY 1, 2 ORDER BY 1") \
-        .format(where=role_where(role_id))
-    return get_conn().execute(sql).fetchdf()
+           "FROM sales_orders WHERE 1=1 {where} GROUP BY 1, 2 ORDER BY 1, 2"
+           ).format(where=role_where(role_id))
+    return query(sql)
 
 
 def metric_series(metric_sql: str, role_id: str) -> pd.DataFrame:
@@ -100,22 +142,18 @@ def dim_breakdown(kpi_id: str, dim: str, period: str, role_id: str) -> pd.DataFr
     """period: 'YYYY-MM' -> queries that month."""
     cfg = load_contract()["kpis"][kpi_id]
     sql = cfg["dim_sql"].format(dim=dim, period=f"{period}-01", where=role_where(role_id))
-    return get_conn().execute(sql).fetchdf()
+    return query(sql)
 
 
 # ---------------- source freshness (reconciliation across systems) ----------------
-
-_DATE_COLS = {"sales_orders": "order_date", "ops_fulfilment": "ship_date",
-              "crm_events": "event_date", "marketing_weekly": "week_start"}
-
 
 @lru_cache(maxsize=1)
 def source_freshness():
     """Per source system: latest record date + declared refresh cadence."""
     contract = load_contract()
     out = {}
-    for view, col in _DATE_COLS.items():
-        latest = get_conn().execute(f"SELECT MAX(CAST({col} AS DATE)) FROM {view}").fetchone()[0]
+    for view, col in DATE_COLS.items():
+        latest = pd.Timestamp(query(f"SELECT MAX({col}) AS m FROM {view}")["m"].iloc[0]).date()
         meta = contract["sources"].get(view, {})
         out[view] = {"system": meta.get("system", view), "grain": meta.get("grain", ""),
                      "refresh": meta.get("refresh", ""), "as_of": str(latest)}
@@ -138,9 +176,8 @@ def system_for_snippet(snippet: dict) -> str:
 
 @lru_cache(maxsize=1)
 def _account_names():
-    df = get_conn().execute(
-        "SELECT DISTINCT account FROM sales_orders WHERE segment='enterprise' AND account <> ''"
-    ).fetchdf()
+    df = query(
+        "SELECT DISTINCT account FROM sales_orders WHERE segment='enterprise' AND account <> ''")
     names = []
     for acc in df["account"]:
         parts = str(acc).split("|")

@@ -16,6 +16,8 @@ Three components, each independent of the z-score test and of the LLM:
 import numpy as np
 import pandas as pd
 
+from . import cache
+
 # two-sided 90% t critical values by degrees of freedom (standard for
 # directional KPI monitoring; a 95% band is looser than the z-gate itself)
 _T90 = {1: 6.314, 2: 2.920, 3: 2.353, 4: 2.132, 5: 2.015, 6: 1.943, 7: 1.895,
@@ -87,7 +89,19 @@ def iforest_daily(daily_df: pd.DataFrame, period: str) -> dict | None:
     IsolationForest PER REGION on that region's days before the analysis month
     (features: value, ratio to 7-day rolling mean, day-of-week), then scores
     the month's days. Localizes the anomaly: a regional level shift that
-    national totals smooth over lights up in its own region's model."""
+    national totals smooth over lights up in its own region's model.
+
+    The verdict is cached on a content hash of `daily_df` + `period`. Fitting
+    five 200-tree forests costs ~7 s and the scikit-learn import another ~9 s on
+    first use, which used to land squarely on the first click of a demo. A hit
+    returns before sklearn is imported at all. The frame is already RBAC-
+    filtered, so the hash is role-scoped by construction.
+    """
+    ck = cache.key_for(cache.frame_fingerprint(daily_df), period, cache.MODEL_VERSION)
+    cached = cache.get("iforest", ck)
+    if cached is not None:
+        return cached
+
     from sklearn.ensemble import IsolationForest
 
     df = daily_df.copy()
@@ -118,6 +132,7 @@ def iforest_daily(daily_df: pd.DataFrame, period: str) -> dict | None:
             "rate": round(float(flags.mean()), 3),
         }
     if not region_stats:
+        cache.put("iforest", ck, None)
         return None
     top_region = max(region_stats, key=lambda r: region_stats[r]["rate"])
     top = region_stats[top_region]
@@ -125,9 +140,11 @@ def iforest_daily(daily_df: pd.DataFrame, period: str) -> dict | None:
     # (Re-predicting the training set just echoes the contamination setting,
     # so it is reported for context but is not the threshold.)
     flagged = top["rate"] > 0.10
-    return {"n_days": top["n_days"], "n_flagged": top["n_flagged"],
+    out = {"n_days": top["n_days"], "n_flagged": top["n_flagged"],
             "contamination": 0.03, "n_models": len(region_stats),
             "region_counts": {r: s["n_flagged"] for r, s in region_stats.items()
                               if s["n_flagged"] > 0},
             "top_region": top_region if top["n_flagged"] > 0 else None,
             "flagged": bool(flagged)}
+    cache.put("iforest", ck, out)
+    return out

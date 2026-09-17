@@ -54,6 +54,10 @@ at2 = new_app()
 at2.run()
 at2.radio[0].set_value(NAV_INV).run()
 at2.text_input(key="ask_box").set_value("what happened to complaints?").run()
+# the ask box is inside a form now (so it cannot re-fire on every rerun) —
+# typing alone must NOT trigger anything; submitting must.
+assert not at2.exception, at2.exception
+at2.button(key="FormSubmitter:ask_form-Ask").click().run()
 assert not at2.exception, at2.exception
 body = all_text(at2)
 assert "Complaint Rate" in body, "intent match failed: " + body[:300]

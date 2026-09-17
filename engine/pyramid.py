@@ -23,6 +23,13 @@ from . import anomaly, confidence, contribution, db, drivers, retrieve
 
 EARLY_EXIT = 0.90
 
+# Confidence reported on the sparse-history path. The narrative quotes this
+# constant rather than a literal, so the number shown and the number scored can
+# never drift apart again (they previously read 0.25 and "limited to 0.40").
+# NOTE: confidence.SPARSE_CAP is still unreachable dead code — score() is never
+# called with sparse=True. That is fixed properly when confidence is recalibrated.
+SPARSE_CONFIDENCE = 0.25
+
 
 def _fmt_value(v, unit):
     if v is None:
@@ -36,13 +43,27 @@ def _fmt_value(v, unit):
     return f"{v:,.1f} {unit}"
 
 
-def _movement_str(an, unit):
+def _movement_str(an, unit, technical: bool = True):
+    """How a KPI moved, in one sentence.
+
+    technical=True appends the standardized score — right for the analyst audit
+    trail and for LLM context. technical=False is the prose form used in any
+    narrative a non-analyst can see: the sanitizer drops whole sentences
+    containing "z=", so a template narrative built from the technical form
+    collapsed to almost nothing, and the executive persona was shown a z-score
+    on the no-signal path despite the docs promising otherwise.
+    """
     if an["current"] is None:
         return "no data"
-    d = "up" if (an.get("z") or 0) > 0 else "down"
-    return (f"{_fmt_value(an['current'], unit)} in {an['period']}, {d} "
-            f"{abs(an.get('pct_vs_recent') or 0):.1f}% vs trailing-3-month avg "
-            f"(z={an.get('z')})")
+    pct = an.get("pct_vs_recent") or 0.0
+    # Direction and magnitude must come from the SAME comparison. This used to
+    # take the direction from sign(z) (vs the long-run mean) while printing
+    # |pct| (vs the trailing 3 months), so a metric that fell 7% rendered as
+    # "up 7.0%" whenever the two baselines disagreed.
+    d = "up" if pct > 0 else "down"
+    s = (f"{_fmt_value(an['current'], unit)} in {an['period']}, {d} "
+         f"{abs(pct):.1f}% vs trailing-3-month avg")
+    return f"{s} (z={an.get('z')})" if technical else s
 
 
 def _load_market_events():
@@ -149,7 +170,8 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             "gate": {"name": "Signal gate", "passed": False,
                      "detail": "Cannot establish a baseline; abstaining from causal claims."},
         })
-        result["confidence"] = {"value": 0.25, "components": {"signal": 0, "coverage": 0, "evidence": 0},
+        result["confidence"] = {"value": SPARSE_CONFIDENCE,
+                                "components": {"signal": 0, "coverage": 0, "evidence": 0},
                                 "weights": confidence.WEIGHTS, "sparse_capped": True,
                                 "evidence_gate": False, "action_gate": False}
         result["outcome"] = "sparse"
@@ -161,7 +183,8 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             "body": (f"This metric is only {an['n_history']} month(s) old, and we need "
                      f"{cfg.get('min_history', 6)} before diagnosing causes. Until then we watch "
                      f"it with wider bands ({band}) and hold off on any conclusions."),
-            "actions": [], "caveats": "Sparse-history cap applied: confidence limited to 0.40.",
+            "actions": [],
+            "caveats": f"Sparse-history cap applied: confidence limited to {SPARSE_CONFIDENCE:.2f}.",
             "clarifying_question": None, "escalation_brief": None, "_fallback": False}
         result["method_mix"] = {"sql_queries": 1, "stat_tests": 1, "ml_models": 0,
                                 "docs_retrieved": 0, "events_scanned": 0}
@@ -185,9 +208,9 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         result["outcome"] = "no_signal"
         result["narrative"] = {
             "headline": f"{cfg['name']}: nothing unusual here",
-            "body": (f"{_movement_str(an, cfg['unit'])}. That's inside this metric's normal "
-                     "range, so no investigation was opened : this is the filter that keeps "
-                     "the team from chasing noise."),
+            "body": (f"{_movement_str(an, cfg['unit'], technical=False)}. That's inside this "
+                     "metric's normal range, so no investigation was opened : this is the "
+                     "filter that keeps the team from chasing noise."),
             "actions": [], "caveats": None, "clarifying_question": None,
             "escalation_brief": None, "_fallback": False}
         result["method_mix"] = {"sql_queries": 1, "stat_tests": 2, "ml_models": 0,
@@ -235,8 +258,15 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             hid = f"H{len(hypotheses)+1}"
             hypotheses.append({
                 "id": hid, "source": "driver", "driver_id": d["driver_id"],
-                "label": (f"{d['label']} moved {'up' if d['z']>0 else 'down'} "
-                          f"{abs(d['pct'] or 0):.1f}% (z={d['z']:.1f}) : {d['note']}"),
+                # Prose label (no "z="): it is joined into the offline template
+                # narrative, which the sanitizer would otherwise discard, and it
+                # is rendered to every persona in the UI. Direction and magnitude
+                # both come from the mean-baseline that decided `status`.
+                "label": (f"{d['label']} moved {'up' if d['z'] > 0 else 'down'} "
+                          f"{abs(d['pct_vs_mean'] or 0):.1f}% : {d['note']}"),
+                "label_technical": (f"{d['label']} moved {'up' if d['z'] > 0 else 'down'} "
+                                    f"{abs(d['pct_vs_mean'] or 0):.1f}% (z={d['z']:.1f}) : "
+                                    f"{d['note']}"),
                 "keywords": d["tags"] + [r.lower() for r in contrib["focus_regions"]],
                 "snippets": [], "events": [], "key_facts": [],
             })
@@ -326,7 +356,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         "duration_ms": round((time.perf_counter() - t0) * 1000, 1),
         "summary": (f"{len(ret['snippets'])} of {ret['corpus_size']} documents retrieved; "
                     f"{corroborated}/{len(hypotheses)} hypotheses corroborated"),
-        "snippets": ret["snippets"], "query_terms": ret["terms"], "mappings": extract["mappings"],
+        "snippets": ret["snippets"], "query_terms": ret["terms"], "mappings": extract.get("mappings", []),   # live JSON may omit it entirely
         "confidence_after": conf2["value"],
         "gate": None,
     })
@@ -399,7 +429,11 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     # ---------------- narrative (LLM) + LEVEL 4 when abstaining ----------------
     ctx = {
         "kpi_name": cfg["name"], "unit": cfg["unit"], "period": period,
-        "movement": _movement_str(an, cfg["unit"]),
+        # prose form: this string is both the LLM's grounding sentence (the
+        # prompt bans statistics vocabulary anyway) and the opening clause of
+        # the offline template narrative, which the sanitizer would otherwise
+        # discard wholesale for containing "z=".
+        "movement": _movement_str(an, cfg["unit"], technical=False),
         "rupee_impact": (_fmt_value(((an["current"] or 0) - (an["mean"] or 0)) * 30, "INR")
                          + " per month (approx)" if cfg["unit"] == "INR/day" else None),
         "focus_regions": contrib["focus_regions"],
