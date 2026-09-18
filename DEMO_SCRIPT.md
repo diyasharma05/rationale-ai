@@ -22,6 +22,21 @@ streamlit run app.py
 
 ---
 
+## 0. Thirty seconds of honesty, first (30s)
+
+Before touching the app, say this — evaluators who discover it themselves
+will remember that you didn't:
+
+> "Everything you're about to see runs on a synthetic dataset for an invented
+> retailer, with known causes planted in it. No real user has used this yet.
+> That is a limitation — and it is also the only reason we can show you a
+> precision and a recall. Real data doesn't come with an answer key. The pilot
+> plan starts with the human step that changes this: a contract workshop with
+> the people who own the KPIs."
+
+Then: "The rule the whole system is built on: the model never computes a
+number and never decides who gets told. It writes sentences."
+
 ## 1. Triage, not a dashboard (45s)
 
 Role: **Data Analyst** → Dashboard.
