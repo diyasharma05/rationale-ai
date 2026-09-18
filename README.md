@@ -66,7 +66,7 @@ not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on
 one process with zero wrong answers under contention, which is the honest
 "add replicas past here" answer.
 
-**It is tested.** 138 tests where there were effectively none:
+**It is tested.** 171 tests where there were effectively none:
 `smoke_test.py` printed everything and asserted nothing. The accuracy harness is
 mutation-tested — seed a wrong expected driver and root-cause accuracy drops
 4/4 → 3/4 — and 15 render snapshots gated a refactor that took `app.py` from
@@ -297,7 +297,7 @@ llm/
 data/generate_data.py        seeded generator + planted scenarios
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
-tests/                       138 tests: unit, RBAC, integration, UI snapshots
+tests/                       171 tests: unit, RBAC, integration, UI snapshots
 ops/bench.py                 latency + concurrency benchmark
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)
 DEMO_SCRIPT.md               judge walkthrough
@@ -392,7 +392,7 @@ streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 ## Verify the install
 
 ```bash
-python -m pytest       # 138 tests: engine invariants, RBAC, the five planted scenarios, UI snapshots
+python -m pytest       # 171 tests: engine invariants, RBAC, the five planted scenarios, UI snapshots
 python eval.py --check # accuracy harness against planted ground truth (CI gate)
 ```
 
