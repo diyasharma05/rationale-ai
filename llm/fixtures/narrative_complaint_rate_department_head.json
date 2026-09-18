@@ -1,0 +1,19 @@
+{
+  "headline": "North-West complaints doubled almost entirely because our warehouse missed delivery promises.",
+  "body": "North-West alone drove nearly all the increase, with complaints jumping from 24 to 60 [E1]. The WH-07 conveyor failure on June 25 cut throughput 60% and left us short 14 pickers [E6]. Customers are noticing\u2014one enterprise account already cited three missed deliveries in June and is shifting volume to a competitor [E3]. Until WH-07 is fixed, we'll keep seeing late deliveries and complaints on North-West lanes.",
+  "actions": [
+    {
+      "driver": "Fulfilment SLA breaches from WH-07 disruption",
+      "lever": "Proactive delay notifications + goodwill credits",
+      "action": "Notify affected customers early and offer goodwill credits now",
+      "expected_impact": "Reduces complaint escalation while WH-07 recovers",
+      "owner": "Head of Customer Service",
+      "confidence": "high",
+      "monitoring": "Track weekly complaint volume for North-West lane"
+    }
+  ],
+  "what_could_change": "Confirmation that WH-07 throughput is restored to normal would ease this concern quickly.",
+  "caveats": "This links complaints to SLA misses but doesn't prove the warehouse issue is the only cause.",
+  "clarifying_question": null,
+  "escalation_brief": "Escalate WH-07 conveyor repair timeline to ops leadership given enterprise churn risk in North-West."
+}

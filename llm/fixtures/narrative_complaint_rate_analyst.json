@@ -1,19 +1,19 @@
 {
-  "headline": "North-West SLA breakdown, driven by a warehouse outage, is fueling the complaint spike.",
-  "body": "North-West alone added 36 extra complaints, more than fully accounting for the rise; other regions actually improved [E1]. The root cause is a conveyor failure and picker shortfall at WH-07 on June 25, which cut sortation throughput and pushed deliveries past promised windows [E6]. Enterprise and SMB customers cite these late deliveries directly, with two accounts flagging churn or renewal risk [E2]. Operations independently confirms the backlog-to-complaint link, corroborating the SLA breach as the driver rather than a coincidental pattern [E4].",
+  "headline": "North-West complaint spike tracks a warehouse SLA breakdown, not a broad trend.",
+  "body": "Complaints jumped mainly because North-West alone added 36 complaints, while every other region actually improved [E1]. The clearest link is WH-07's conveyor failure on June 25, which cut throughput to 60% and drove SLA breaches on North-West lanes [E6]. Multiple customers explicitly cite late deliveries against a 2-day promise as their complaint reason, including one enterprise account weighing churn [E3]. SLA percentage moved inversely with complaints over the past year, reinforcing that fulfilment delay is the operative mechanism here.",
   "actions": [
     {
-      "driver": "SLA breaches from WH-07 outage",
+      "driver": "SLA breaches at WH-07 driving North-West complaints",
       "lever": "Proactive delay notifications + goodwill credits",
-      "action": "Notify affected North-West customers and issue goodwill credits now",
-      "expected_impact": "Reduce complaint escalation and churn risk while backlog clears",
+      "action": "Send delay alerts and credits to North-West customers now",
+      "expected_impact": "Reduce complaint escalations and churn risk while SLA recovers",
       "owner": "Head of Customer Service",
       "confidence": "high",
-      "monitoring": "Track North-West complaint rate and WH-07 throughput weekly"
+      "monitoring": "Track North-West complaint rate and SLA % weekly through August"
     }
   ],
-  "what_could_change": "If WH-07 throughput recovers and North-West complaints don't fall accordingly, look for a second cause.",
-  "caveats": "Impact figures are in complaint counts, not rupees, and no rupee estimate was computed.",
+  "what_could_change": "Confirmation that WH-07 throughput has been restored, or a second warehouse showing similar breaches, would strengthen or shift this read.",
+  "caveats": "Evidence covers only WH-07 events and customer complaints; root operational cause of the conveyor failure isn't independently verified.",
   "clarifying_question": null,
   "escalation_brief": null
 }

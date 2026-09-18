@@ -1,9 +1,9 @@
 {
-  "headline": "Conversion fell nearly evenly across all regions; no single confirmed cause yet.",
-  "body": "The drop is broad-based: West, East, North, and North-West each lost about a fifth of the total decline, roughly equal shares. That uniformity argues against a region-specific driver and points toward something systemic. Marketing spend and tracked sessions both show weak movement with the KPI, so neither corroborates the decline. An unvalidated lead ties this to a North-West warehouse failure and SLA breaches, but no evidence yet supports or refutes it.",
+  "headline": "Conversion rate dropped uniformly across regions, but we can't confirm why.",
+  "body": "The decline is broad-based, not concentrated in any one region \u2014 all four regions fell by roughly the same amount. Marketing spend and tracked sessions both show weak co-movement, not enough to point to either as a driver. No corroborating evidence was retrieved to support a specific cause. The uniform, diffuse pattern suggests something upstream or systemic rather than a regional or campaign-specific issue.",
   "actions": [],
-  "what_could_change": "Confirmed SLA breach logs or churn timing data tied to the North-West warehouse incident would validate or rule out the lead.",
-  "caveats": "Confidence is capped because no supporting evidence dataset was available, only the aggregate signal; regional split alone can't isolate a cause.",
-  "clarifying_question": "Can you provide SLA breach or enterprise churn records for late June to test the warehouse-failure lead?",
-  "escalation_brief": "Marketing conversion dropped uniformly across all regions in July with no corroborating driver data; a warehouse-failure hypothesis is unverified and needs SLA/churn evidence before action."
+  "what_could_change": "Evidence tying the drop to a specific campaign change, tracking issue, or funnel step would let us confirm a cause.",
+  "caveats": "Confidence is low because coverage and supporting evidence are both thin, even though the movement itself is statistically clear.",
+  "clarifying_question": "Did any tracking, attribution, or funnel/checkout change roll out across all regions in July 2026?",
+  "escalation_brief": "Conversion rate fell 15.7% below trend uniformly across all regions in July 2026 with no clear driver identified; recommend checking for a global tracking or funnel change before reallocating budget."
 }

@@ -1,0 +1,19 @@
+{
+  "headline": "North-West's SLA drop, driven by a broken conveyor and staffing gaps, is dragging fulfilment down.",
+  "body": "North-West SLA fell nearly 13 points, the biggest driver of the overall 3.8% decline [E5]. A conveyor failure and picker shortage at WH-07 caused repeated delivery delays [E1]. That's already pushing at least one enterprise customer to shift volume to a competitor [E2]. Other regions are stable, so this is a localized, fixable problem.",
+  "actions": [
+    {
+      "driver": "WH-07 conveyor failure and staffing shortage",
+      "lever": "Temporary 3PL overflow capacity",
+      "action": "Activate 3PL overflow for North-West lanes now",
+      "expected_impact": "Restore SLA toward 91% within 1-2 weeks",
+      "owner": "VP Operations",
+      "confidence": "high",
+      "monitoring": "Track North-West SLA % weekly until back to baseline"
+    }
+  ],
+  "what_could_change": "Confirmation that conveyor repair and picker hiring are complete would strengthen this conclusion.",
+  "caveats": "A competitor's new express delivery service may also be pulling customer volume away.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

@@ -1,0 +1,19 @@
+{
+  "headline": "Complaints jumped 29% in July, driven almost entirely by North-West delivery delays.",
+  "body": "North-West complaints nearly tripled versus the recent average, while other regions stayed flat or improved [E1]. A warehouse dispatch and conveyor breakdown caused repeated late deliveries there, directly fueling customer complaints [E6]. Enterprise customers are already citing these SLA misses as a reason to consider leaving [E3].",
+  "actions": [
+    {
+      "driver": "Fulfilment SLA breaches in North-West",
+      "lever": "Proactive delay notifications + goodwill credits",
+      "action": "Notify affected customers and issue goodwill credits now",
+      "expected_impact": "Reduce complaint escalation and protect at-risk enterprise accounts",
+      "owner": "Head of Customer Service",
+      "confidence": "high",
+      "monitoring": "Track North-West complaint rate and SLA % weekly"
+    }
+  ],
+  "what_could_change": "Confirmation that warehouse WH-07 throughput has recovered would strengthen this conclusion.",
+  "caveats": "This shows delays and complaints moved together, not proven direct causation.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

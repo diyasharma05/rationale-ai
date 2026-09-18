@@ -1,0 +1,19 @@
+{
+  "headline": "North-West lost 3 enterprise accounts after a warehouse breakdown caused missed deliveries.",
+  "body": "All of July's account decline is concentrated in North-West, where a conveyor failure at WH-07 cut throughput and caused SLA misses [E1]. Two enterprise customers explicitly cited missed delivery windows as their reason for churning to a competitor [E3]. This looks like an operational failure driving customer loss, not a broader demand issue.",
+  "actions": [
+    {
+      "driver": "Fulfilment SLA misses from WH-07 outage",
+      "lever": "Executive save-desk + contractual SLA guarantee",
+      "action": "Engage at-risk North-West accounts with SLA guarantees now",
+      "expected_impact": "Recover 2-3 at-risk enterprise accounts",
+      "owner": "Head of Enterprise Sales",
+      "confidence": "high",
+      "monitoring": "Track North-West SLA % and account status weekly"
+    }
+  ],
+  "what_could_change": "Confirmation that WH-07 throughput has fully recovered would strengthen this conclusion.",
+  "caveats": "Based on a small number of accounts, so each customer's decision carries outsized weight.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}

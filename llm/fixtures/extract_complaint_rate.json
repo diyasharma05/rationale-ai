@@ -6,7 +6,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "Customer complaint about late delivery (promised 2 days, delivered day 6) directly tied to SLA breach; customer requested refund due to repeated late deliveries."
+      "key_fact": "Order promised in 2 days, delivered on day 6 due to warehouse dispatch delay at WH-07; customer complaint filed."
     },
     {
       "snippet_id": "E2",
@@ -14,7 +14,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "Enterprise customer explicitly cites three of five deliveries missing SLA in June as reason for order pause and churn to competitor; links SLA breaches directly to complaint escalation."
+      "key_fact": "Delivery 4 days late; repeat complaint from SMB customer citing competitor's 2-day express performance."
     },
     {
       "snippet_id": "E3",
@@ -22,7 +22,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "SMB repeat complaint for 4-day late delivery; customer explicitly references competitor's 2-day express as comparison, indicating SLA miss triggered complaint."
+      "key_fact": "Enterprise customer explicitly stated three of last five deliveries missed SLA in June, leading to churn and volume migration to competitor; customer requests reliable 3-day SLA."
     },
     {
       "snippet_id": "E4",
@@ -30,15 +30,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "Operations team confirms complaint volume climbing with late delivery as primary reason; WH-07 backlog of 1,900 orders directly correlates to SLA breach complaints."
-    },
-    {
-      "snippet_id": "E5",
-      "relevant": true,
-      "supports": [
-        "H1"
-      ],
-      "key_fact": "Enterprise customer QBR failure attributed to June delivery misses on 4 POs; SLA failures linked to renewal risk and complaint escalation."
+      "key_fact": "Enterprise customer cited June delivery misses on 4 POs as reason for evaluating competitor's express program; renewal at risk."
     },
     {
       "snippet_id": "E6",
@@ -46,7 +38,7 @@
       "supports": [
         "H1"
       ],
-      "key_fact": "WH-07 conveyor failure on June 25 reduced sortation to 60% throughput with staffing shortfall of 14 pickers; operations explicitly forecasted SLA breaches on North-West lanes as direct consequence."
+      "key_fact": "WH-07 conveyor failure on June 25 caused 60% throughput reduction and staffing shortage of 14 pickers; ops team expects SLA breaches on North-West lanes until resolved."
     }
   ],
   "new_hypothesis": null

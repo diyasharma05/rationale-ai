@@ -1,28 +1,28 @@
 {
-  "headline": "North-West conveyor failure is driving nearly the entire SLA drop.",
-  "body": "The WH-07 conveyor failure on June 25 cut sortation capacity to 60%, and the spare part is still three weeks out [E5]. That single region accounts for essentially all of the SLA decline, while other regions are flat or improving. A prior East region incident with the same failure mode recovered in 12 days once overflow capacity was added, but that mitigation wasn't deployed here [E4]. A competing SLA-linked hypothesis, SwiftKart's new express launch, is plausible but unconfirmed and can't explain the July persistence pattern on its own.",
+  "headline": "North-West's WH-07 conveyor breakdown drove the SLA drop to 88.3%.",
+  "body": "North-West alone fell 13 points while other regions held roughly flat, matching the regional concentration flagged upstream. The conveyor failure on June 25 cut sortation throughput to 60% and left the site short 14 pickers, which lines up with delivery delays and two enterprise customers citing missed SLAs in North-West [E5]. A competitor's new 2-day express launch in the same region is a secondary factor worth checking but has weaker support and no direct evidence tying it to volume loss yet.",
   "actions": [
     {
-      "driver": "WH-07 conveyor failure / capacity shortfall",
+      "driver": "WH-07 conveyor failure and picker shortage",
       "lever": "Temporary 3PL overflow capacity",
-      "action": "Activate pre-approved 3PL overflow for North-West lanes now",
-      "expected_impact": "Recover SLA to baseline in about 12 days, per precedent",
+      "action": "Route North-West overflow volume to 3PL immediately",
+      "expected_impact": "Restore SLA toward baseline within 1-2 weeks",
       "owner": "VP Operations",
       "confidence": "high",
-      "monitoring": "Track North-West SLA daily until back above 90%"
+      "monitoring": "Track North-West daily SLA % and dispatch delay times"
     },
     {
-      "driver": "Picker staffing shortfall at WH-07",
+      "driver": "Picker staffing shortage at WH-07",
       "lever": "Picker staffing plan",
-      "action": "Backfill 14-picker shortfall with temporary labor",
-      "expected_impact": "Restores throughput while conveyor part is on backorder",
+      "action": "Fill the 14 open picker roles at WH-07",
+      "expected_impact": "Restore sortation throughput above 60%",
       "owner": "NW Ops Lead",
       "confidence": "medium",
-      "monitoring": "Monitor daily throughput and picker headcount at WH-07"
+      "monitoring": "Track WH-07 throughput and staffing headcount weekly"
     }
   ],
-  "what_could_change": "Confirmation that conveyor part arrival or overflow rollout timing shifts, or evidence SwiftKart's launch is pulling volume independent of the outage, would revise this.",
-  "caveats": "The SwiftKart express-launch hypothesis is uncorroborated by internal data and should not be treated as a confirmed driver yet.",
-  "clarifying_question": "Can we get confirmed ETA for the conveyor spare part and current 3PL overflow rollout status?",
+  "what_could_change": "Confirmation of conveyor repair completion date or evidence linking SwiftKart's launch to actual volume diversion would sharpen this.",
+  "caveats": "The competitor launch hypothesis is unstructured and not yet corroborated with volume-loss data; causation is not established.",
+  "clarifying_question": null,
   "escalation_brief": null
 }

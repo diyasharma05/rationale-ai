@@ -2,55 +2,10 @@
   "mappings": [
     {
       "snippet_id": "E1",
-      "relevant": true,
-      "supports": [
-        "NEW"
-      ],
-      "key_fact": "Enterprise customer (Meridian Retail Group) paused orders and migrated replenishment volume to competitor (SwiftKart) due to three of five June deliveries missing SLA; this represents direct loss of conversion/order volume from a high-value account."
-    },
-    {
-      "snippet_id": "E2",
-      "relevant": true,
-      "supports": [
-        "NEW"
-      ],
-      "key_fact": "Enterprise customer (Kalinga Mart) renewal at risk and evaluating competitor express program after June delivery misses on 4 POs, indicating imminent conversion loss in the North-West region."
-    },
-    {
-      "snippet_id": "E3",
-      "relevant": true,
-      "supports": [
-        "NEW"
-      ],
-      "key_fact": "WH-07 conveyor failure on June 25 reduced North-West throughput to ~60% and created staffing shortage; ops team forecasted SLA breaches on North-West lanes, which directly preceded the July conversion rate decline."
-    },
-    {
-      "snippet_id": "E5",
-      "relevant": true,
-      "supports": [
-        "NEW"
-      ],
-      "key_fact": "By July 3, WH-07 backlog reached 1,900 orders with oldest at 5 days; manual sortation holding at 60%; complaint volume climbing with late delivery as primary driver."
-    },
-    {
-      "snippet_id": "E6",
-      "relevant": true,
-      "supports": [
-        "NEW"
-      ],
-      "key_fact": "Consumer order promised in 2 days delivered in 6 days due to WH-07 dispatch delay; customer requested refund, indicating service failure converting to churn/non-repeat conversion."
+      "relevant": false,
+      "supports": [],
+      "key_fact": "Brand refresh (logo/typography) deployed end of June 2026; explicitly states no checkout or tracking changes"
     }
   ],
-  "new_hypothesis": {
-    "label": "North-West warehouse operational failure in late June caused SLA breaches that triggered enterprise customer churn and reduced consumer repeat conversions in July",
-    "keywords": [
-      "WH-07 conveyor failure",
-      "manual sortation 60% throughput",
-      "North-West SLA breaches",
-      "enterprise customer migration to SwiftKart",
-      "delayed deliveries",
-      "order backlog",
-      "customer complaint volume"
-    ]
-  }
+  "new_hypothesis": null
 }

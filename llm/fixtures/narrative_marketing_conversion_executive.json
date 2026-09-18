@@ -1,9 +1,9 @@
 {
-  "headline": "Conversion dropped everywhere in July, but we can't yet pin down why.",
-  "body": "All four regions fell by nearly the same amount, so this isn't a one-region problem. Marketing spend and website traffic don't explain the drop. We haven't yet confirmed if the suspected warehouse delivery issue is the actual cause.",
+  "headline": "Conversion rate fell to 2.7%, down nearly 16%, and the cause isn't yet clear.",
+  "body": "The drop hit every region almost equally, so it's not a single-market problem. Marketing spend and site traffic barely moved with the decline, which rules them out as likely explanations. We don't yet have enough evidence to point to a specific root cause.",
   "actions": [],
-  "what_could_change": "Direct evidence linking the North-West warehouse delays to customer conversion, or new data on customer complaints and competitor activity, would clarify the cause.",
-  "caveats": "This is a broad, uniform decline with no confirmed root cause yet; acting without more evidence risks fixing the wrong problem.",
-  "clarifying_question": "Do we have customer complaint or churn data tied to delivery delays that coincides with the conversion drop?",
-  "escalation_brief": "Conversion rate fell sharply and uniformly across all regions in July with no confirmed cause; a suspected but unverified link to a North-West warehouse failure and enterprise customer defection needs urgent validation before any marketing spend decisions are made."
+  "what_could_change": "Data on campaign creative changes, pricing shifts, or landing-page issues would help confirm a cause.",
+  "caveats": "This read is based on limited supporting evidence, so treat any explanation as unconfirmed for now.",
+  "clarifying_question": "Were there any recent changes to campaign creative, landing pages, or pricing that could affect conversion?",
+  "escalation_brief": "Marketing conversion dropped 15.7% broadly across all regions with no clear driver identified; recommend a rapid cross-functional review of campaign, product, and pricing changes before reallocating budget."
 }

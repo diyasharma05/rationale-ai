@@ -1,28 +1,28 @@
 {
-  "headline": "North-West SLA failures from a warehouse breakdown are driving enterprise account losses.",
-  "body": "All the account decline is concentrated in North-West, where fulfilment SLA dropped sharply [E1]. A conveyor failure and picker shortage at WH-07 degraded throughput and produced the SLA misses [E6]. Two named enterprise accounts, Meridian Retail Group and Kalinga Mart, cite missed deliveries as their reason for evaluating a competitor [E3]. No contradicting driver was found, and the SLA-to-churn link is strongly corroborated across accounts.",
+  "headline": "North-West account losses track directly with July's SLA breakdowns.",
+  "body": "All the decline sits in North-West, where accounts dropped from 14 to 11 [E1]. That region also missed fulfilment SLA by 3.9%, and two enterprise accounts cited specific June delivery misses as their reason for leaving or pausing orders [E3]. A conveyor failure at warehouse WH-07 on June 25, combined with a picker shortage, is the operational root behind those SLA misses [E6]. Other regions show no delta, reinforcing that this is a localized North-West fulfilment issue, not a broad demand problem.",
   "actions": [
     {
-      "driver": "SLA breaches from WH-07 mechanical failure",
+      "driver": "Fulfilment SLA misses tied to WH-07 breakdown",
       "lever": "Executive save-desk + contractual SLA guarantee",
-      "action": "Offer Meridian and Kalinga a written 3-day SLA commitment",
-      "expected_impact": "Retain at-risk enterprise accounts before churn finalizes",
+      "action": "Offer at-risk accounts a formal SLA guarantee now",
+      "expected_impact": "Reduce further churn among flagged enterprise accounts",
       "owner": "Head of Enterprise Sales",
       "confidence": "high",
-      "monitoring": "Track SLA % and account status weekly for both accounts"
+      "monitoring": "Track weekly status of Meridian and Kalinga accounts"
     },
     {
-      "driver": "Customer trust loss post-SLA miss",
+      "driver": "Fulfilment SLA misses tied to WH-07 breakdown",
       "lever": "Win-back onboarding credits",
-      "action": "Approve onboarding credits for at-risk North-West accounts",
-      "expected_impact": "Improve odds of reversing migration decisions",
+      "action": "Extend onboarding credits to accounts that paused orders",
+      "expected_impact": "Encourage resumption of paused order volume",
       "owner": "Head of Enterprise Sales",
       "confidence": "medium",
-      "monitoring": "Monitor renewal/QBR outcomes over next 60 days"
+      "monitoring": "Monitor order resumption rate over next 30 days"
     }
   ],
-  "what_could_change": "Confirmation that WH-07 conveyor and staffing are fixed, and SLA recovers, would validate the fix; a third account citing SLA misses would strengthen the case further.",
-  "caveats": "Impact is drawn from only two named accounts and one region, so scale beyond North-West is unconfirmed.",
+  "what_could_change": "Confirmation that WH-07 throughput and staffing are fully restored would strengthen this conclusion further.",
+  "caveats": "Evidence covers only two named accounts and one warehouse incident, so the sample is small.",
   "clarifying_question": null,
   "escalation_brief": null
 }

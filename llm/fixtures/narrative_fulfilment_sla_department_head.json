@@ -1,0 +1,28 @@
+{
+  "headline": "North-West's SLA dropped hard because WH-07's conveyor broke and pickers were short.",
+  "body": "Our region is the whole story this month \u2014 North stayed flat while North-West fell 13 points. The WH-07 conveyor failure cut sortation capacity to 60% and left us 14 pickers short, driving missed deliveries [E5]. Two enterprise accounts, Meridian and Kalinga, already saw late orders and are shifting volume to competitors [E2]. SwiftKart's new express delivery push in our territory may be adding pressure too, but the warehouse breakdown is the bigger issue.",
+  "actions": [
+    {
+      "driver": "WH-07 conveyor failure and picker shortage",
+      "lever": "Temporary 3PL overflow capacity",
+      "action": "Activate 3PL overflow for North-West lanes now",
+      "expected_impact": "Restore SLA toward baseline within weeks, as seen in East 2025",
+      "owner": "VP Operations",
+      "confidence": "medium",
+      "monitoring": "Track daily SLA % and dispatch delay times for WH-07"
+    },
+    {
+      "driver": "Picker shortfall at WH-07",
+      "lever": "Picker staffing plan",
+      "action": "Fast-track hiring to fill 14 picker gap",
+      "expected_impact": "Rebuild sortation throughput back to normal levels",
+      "owner": "NW Ops Lead",
+      "confidence": "medium",
+      "monitoring": "Weekly headcount vs plan and throughput rate at WH-07"
+    }
+  ],
+  "what_could_change": "Confirmation the conveyor part is installed and pickers hired would strengthen this, while more customer defections would deepen concern.",
+  "caveats": "We can't yet separate how much SwiftKart's new service is pulling volume versus our own delays.",
+  "clarifying_question": null,
+  "escalation_brief": null
+}
