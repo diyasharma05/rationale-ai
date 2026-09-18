@@ -1467,13 +1467,26 @@ elif nav == "Investigation":
             fc1, fc2, fc3 = st.columns([1, 1, 4])
             comment = fc3.text_input("Correction / note (stored in the decision ledger)",
                                      key=f"fb_txt_{r['inv_id']}")
-            if fc1.button("👍 Correct", key=f"up_{r['inv_id']}"):
-                fb.log_feedback(r["inv_id"], "up", comment)
-                st.toast("Logged : confirmed conclusions strengthen future Recall.", icon="✅")
-            if fc2.button("👎 Wrong", key=f"dn_{r['inv_id']}"):
-                fb.log_feedback(r["inv_id"], "down", comment)
-                st.toast("Logged : future related investigations will retrieve this correction.",
-                         icon="📝")
+            # Record the verdict against the RANK-1 driver, which is the claim
+            # the human is actually judging. That is what lets a correction
+            # change a later answer instead of just sitting in the log.
+            _top = next((h for h in r.get("hypotheses", []) if h.get("rank") == 1), None)
+            _judged = (_top or {}).get("driver_id", "")
+            _voted = st.session_state.setdefault("_voted", set())
+            if r["inv_id"] in _voted:
+                st.caption("Verdict recorded for this investigation.")
+            else:
+                if fc1.button("👍 Correct", key=f"up_{r['inv_id']}"):
+                    fb.log_feedback(r["inv_id"], "up", comment, kpi=kpi_id,
+                                    period=PERIOD, driver=_judged)
+                    _voted.add(r["inv_id"])
+                    st.toast("Logged : this explanation will rank higher next time.", icon="✅")
+                if fc2.button("👎 Wrong", key=f"dn_{r['inv_id']}"):
+                    fb.log_feedback(r["inv_id"], "down", comment, kpi=kpi_id,
+                                    period=PERIOD, driver=_judged)
+                    _voted.add(r["inv_id"])
+                    st.toast("Logged : this explanation will be demoted next time.",
+                             icon="📝")
 
 # ---------------------------------------------------------------- ledger
 elif nav == "Decision Ledger":

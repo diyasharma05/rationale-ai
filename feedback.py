@@ -69,32 +69,70 @@ def log_investigation(result: dict) -> str:
     return inv_id
 
 
-def log_feedback(inv_id: str, vote: str, comment: str = ""):
-    _append(FEEDBACK, {"id": inv_id, "timestamp": datetime.now().isoformat(timespec="seconds"),
-                       "vote": vote, "comment": comment})
-    # also mirror the correction into the ledger so retrieval can surface it
-    _append(LEDGER, {
-        "id": f"{inv_id}-FB", "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "kpi": "feedback", "period": "", "confidence": "",
-        "outcome": f"user_{vote}",
-        "summary": f"User feedback on {inv_id}: {vote}. {comment}".strip(),
-        "feedback": vote,
-    })
+def log_feedback(inv_id: str, vote: str, comment: str = "", kpi: str = "",
+                 period: str = "", driver: str = ""):
+    """Record a human judgement ON an existing investigation.
+
+    Written as a VERDICT record keyed to the original entry, not as a new
+    pseudo-investigation. The old mirror row was a ledger entry with
+    kpi="feedback", period="" and confidence="" -- which put a non-numeric
+    value in the confidence column (breaking its dtype) and created a row that
+    no period filter could ever exclude from the retrieval corpus.
+    """
+    rec = {"id": inv_id, "timestamp": datetime.now().isoformat(timespec="seconds"),
+           "vote": vote, "comment": comment, "kpi": kpi, "period": period,
+           "driver": driver}
+    _append(FEEDBACK, rec)
+    _append(LEDGER, {"type": "verdict", "id": f"{inv_id}#verdict",
+                     "target": inv_id, "timestamp": rec["timestamp"],
+                     "kpi": kpi, "period": period, "driver": driver,
+                     "vote": vote, "comment": comment})
 
 
-def read_ledger():
-    """Tolerant of a torn line: an interrupted append (or a concurrent eval.py
+def read_ledger(include_verdicts: bool = False):
+    """Investigations, with any human verdict folded in.
+
+    The file is append-only, so a vote arrives as a separate `verdict` record
+    pointing at an existing id; reading folds it back onto the investigation
+    it judges. Callers therefore see one row per investigation carrying its
+    latest vote, rather than a stream of orphan feedback rows.
+
+    Tolerant of a torn line: an interrupted append (or a concurrent eval.py
     run) must not permanently break every investigation, since the ledger is
-    also the Level-2 retrieval corpus."""
+    also the Level-2 retrieval corpus.
+    """
     if not os.path.exists(LEDGER):
         return []
-    out = []
+    entries, verdicts = [], {}
     with open(LEDGER, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
             try:
-                out.append(json.loads(line))
+                rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
-    return out
+            if rec.get("type") == "verdict":
+                verdicts[rec.get("target")] = rec      # last vote wins
+                if include_verdicts:
+                    entries.append(rec)
+            else:
+                entries.append(rec)
+    for e in entries:
+        v = verdicts.get(e.get("id"))
+        if v:
+            e["feedback"] = v.get("vote")
+            e["correction"] = v.get("comment", "")
+        # The seeded precedent stores feedback as a nested object, while
+        # verdicts store a bare vote string. Normalise so every consumer can
+        # treat `feedback` as "up" | "down" | None.
+        if isinstance(e.get("feedback"), dict):
+            e["correction"] = e["feedback"].get("comment", "")
+            e["feedback"] = e["feedback"].get("vote")
+    return entries
+
+
+def verdicts_by_kpi(kpi: str) -> list:
+    """Every human verdict recorded against this KPI, newest last."""
+    return [e for e in read_ledger(include_verdicts=True)
+            if e.get("type") == "verdict" and e.get("kpi") == kpi]

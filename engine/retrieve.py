@@ -28,7 +28,8 @@ def load_corpus():
     for e in _fb.read_ledger():
         docs.append({
             "file": f"decision_ledger:{e['id']}", "kind": "ledger",
-            "meta": {"kpi": e.get("kpi"), "period": e.get("period")},
+            "meta": {"kpi": e.get("kpi"), "period": e.get("period"),
+                     "vote": e.get("feedback")},
             "text": f"PAST INVESTIGATION {e['id']} | KPI: {e['kpi']} | "
                     f"period {e['period']} | confidence {e['confidence']}\n{e['summary']}",
         })
@@ -51,6 +52,14 @@ def build_query_terms(kpi_cfg: dict, focus_regions: list, driver_findings: list)
 
 
 MAX_LEDGER_SNIPPETS = 2
+
+# How a human verdict on a past conclusion changes its weight as precedent.
+# Before this, an upvote and a downvote scored identically -- feedback was
+# text the model might read, and no gate, rank or threshold was affected,
+# while the UI promised that corrections would shape future investigations.
+# A conclusion a human marked wrong is actively harmful as precedent, so it
+# is dropped rather than merely down-weighted.
+VOTE_WEIGHT = {"up": 1.5, "down": 0.0, None: 1.0}
 
 
 @lru_cache(maxsize=256)
@@ -94,6 +103,8 @@ def search(kpi_cfg: dict, focus_regions: list, driver_findings: list, role_id: s
             continue
         low = doc["text"].lower()
         score = sum(w * len(re.findall(_term_re(t), low)) for t, w in terms)
+        if is_ledger:
+            score *= VOTE_WEIGHT.get(doc.get("meta", {}).get("vote"), 1.0)
         if score > 0:
             scored.append((score, is_ledger, doc))
     scored.sort(key=lambda x: (-x[0], x[2]["file"]))

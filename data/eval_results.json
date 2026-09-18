@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-18 11:48:48",
+  "generated_at": "2026-09-18 11:57:18",
   "periods": {
     "2026-07": "Incident month (WH-07 conveyor failure, competitor launch)",
     "2026-02": "Control month (no incident planted)",
@@ -79,7 +79,7 @@
     }
   },
   "runtime": {
-    "median_ms": 9.3,
+    "median_ms": 20.1,
     "mean_llm_calls": 0.28,
     "mode": "mock"
   },

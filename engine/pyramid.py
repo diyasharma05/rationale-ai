@@ -145,7 +145,25 @@ def _iforest_detail(f: dict) -> str:
             f"anomalous ({rate:.0%} vs a >10% rule). Smoothed over 7 days, so the "
             f"effective sample is about {ess} independent observations — {fragility}.")
 
-def _rank_hypotheses(hypotheses, driver_findings):
+# How much a past human correction moves a hypothesis that repeats the same
+# explanation. Deliberately bounded: a correction is evidence about a past
+# conclusion, not a veto over the statistics.
+PRECEDENT_ADJUST = {"up": 1.15, "down": 0.6}
+
+
+def _precedent_votes(kpi_id: str) -> dict:
+    """driver_id -> latest human verdict on a past conclusion naming it."""
+    out = {}
+    try:
+        for v in fb.verdicts_by_kpi(kpi_id):
+            if v.get("driver"):
+                out[v["driver"]] = v.get("vote")
+    except Exception:
+        pass          # the learning loop must never break an investigation
+    return out
+
+
+def _rank_hypotheses(hypotheses, driver_findings, precedent=None):
     """Objective 3: rank explanatory drivers. Strength blends statistical movement,
     unstructured corroboration and external confirmation : computed, not LLM-scored."""
     z_by_driver = {d["driver_id"]: abs(d["z"] or 0) for d in driver_findings}
@@ -161,6 +179,13 @@ def _rank_hypotheses(hypotheses, driver_findings):
         if h.get("driver_id") in unexplained:
             h["unexplained"] = True
             h["strength"] = round(h["strength"] * confidence.UNEXPLAINED_WEIGHT, 2)
+        # The learning loop, applied where it actually changes an answer: a
+        # driver a human previously marked wrong for this KPI is demoted, one
+        # they confirmed is promoted.
+        vote = (precedent or {}).get(h.get("driver_id"))
+        if vote in PRECEDENT_ADJUST:
+            h["precedent"] = vote
+            h["strength"] = round(min(h["strength"] * PRECEDENT_ADJUST[vote], 1.0), 2)
     for rank, h in enumerate(sorted(hypotheses, key=lambda x: -x["strength"]), start=1):
         h["rank"] = rank
     hypotheses.sort(key=lambda x: x["rank"])
@@ -222,6 +247,10 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             "clarifying_question": None, "escalation_brief": None, "_fallback": False}
         result["method_mix"] = {"sql_queries": 1, "stat_tests": 1, "ml_models": 0,
                                 "docs_retrieved": 0, "events_scanned": 0}
+        # Log these too: no_signal and sparse are conclusions the engine
+        # stands behind, and they were 20 of 24 eval cases never reaching the
+        # ledger at all -- so "every investigation is appended here" was false.
+        result["inv_id"] = fb.log_investigation(result)
         result["telemetry"] = telemetry.slice_from(tmark)
         result["wall_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
         return result
@@ -258,6 +287,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             "escalation_brief": None, "_fallback": False}
         result["method_mix"] = {"sql_queries": 1, "stat_tests": 2, "ml_models": 0,
                                 "docs_retrieved": 0, "events_scanned": 0}
+        result["inv_id"] = fb.log_investigation(result)
         result["telemetry"] = telemetry.slice_from(tmark)
         result["wall_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
         return result
@@ -454,7 +484,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         final_conf = conf2
 
     # ---------------- rank drivers + gates -> outcome ----------------
-    _rank_hypotheses(hypotheses, driver_findings)
+    _rank_hypotheses(hypotheses, driver_findings, _precedent_votes(kpi_id))
     result["confidence"] = final_conf
     if final_conf["action_gate"]:
         outcome = "actions"
