@@ -296,5 +296,43 @@ def _print(r):
     print(f"\nwritten to {OUT}\n")
 
 
+# CI gate. Set from the current measured baseline: these are the numbers the
+# pitch quotes, so a regression should fail a build rather than surface on
+# stage. Recall and abstention are absolute -- missing a planted incident, or
+# failing to abstain on the tracking bug, are the two failures that matter.
+THRESHOLDS = {
+    "detection.recall": 1.0,
+    "detection.precision": 1.0,
+    "root_cause.accuracy": 1.0,
+    "overall.accuracy": 1.0,
+}
+
+
+def check(r: dict) -> int:
+    failures = []
+    for path, floor in THRESHOLDS.items():
+        section, key = path.split(".")
+        got = r[section][key]
+        if got is None or got < floor:
+            failures.append(f"{path}: {got} < {floor}")
+    if r["abstention"]["correct"] < r["abstention"]["expected"]:
+        failures.append("abstention: engine failed to abstain where it should")
+    if r["false_alarm_impact"]["harmful"] > 0:
+        failures.append("a false alarm produced a conclusion")
+    if failures:
+        print()
+        print("EVAL CHECK FAILED:")
+        for f in failures:
+            print(f"  - {f}")
+        return 1
+    print()
+    print("EVAL CHECK PASSED : no regression against the recorded baseline.")
+    return 0
+
+
 if __name__ == "__main__":
-    _print(evaluate())
+    import sys
+    result = evaluate()
+    _print(result)
+    if "--check" in sys.argv:
+        sys.exit(check(result))

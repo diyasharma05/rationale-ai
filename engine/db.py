@@ -190,7 +190,19 @@ def _code(name: str) -> str:
     return "ACCT-" + hashlib.sha1(name.encode()).hexdigest()[:4].upper()
 
 
-def mask_text(text: str, role_id: str) -> str:
+def mask_text(text, role_id: str) -> str:
+    """Replace enterprise account names with stable ACCT- codes for roles that
+    are not cleared to see them.
+
+    Coerces its input: callers include DataFrame.map over columns that can
+    hold NaN, and under pandas 3 an Arrow-backed .astype(str) still hands the
+    original float to map() -- which crashed the Data page for the executive
+    role with "argument of type 'float' is not iterable".
+    """
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        text = str(text)
     if not load_roles()[role_id].get("mask_accounts", False):
         return text
     for name in _account_names():

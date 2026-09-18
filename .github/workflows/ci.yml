@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MOCK_MODE: "1"          # no test may ever reach the live API
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Fast suite (engine, RBAC, integration)
+        run: python -m pytest tests/unit tests/rbac tests/integration
+
+      - name: Headless UI + render snapshots
+        run: python -m pytest tests/ui
+
+      - name: Accuracy harness must not regress
+        run: python eval.py --check

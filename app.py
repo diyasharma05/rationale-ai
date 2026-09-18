@@ -61,6 +61,11 @@ if not os.path.exists(os.path.join(DATA_DIR, "sales_orders.csv")):
 # so every machine reasons over the same corpus.
 fb.ensure_state()
 
+# Bookmark where this browser session starts in the process-wide telemetry
+# log, so the Under the Hood panel can report this session only.
+if "_tel_start" not in st.session_state:
+    st.session_state["_tel_start"] = telemetry.mark()
+
 
 # --- validated reference palette (dataviz method), theme-aware ---
 def _theme_base():
@@ -710,7 +715,7 @@ with st.sidebar:
     if st.button("↺ Reset demo state"):
         fb.reset_ledger()
         st.session_state.investigations = {}
-        telemetry.RECORDS.clear()
+        telemetry.reset()
         st.success("Ledger, feedback and cached investigations reset.")
 
 # ---- top control bar (Grafana-style): analysis window, top right ----
@@ -1601,11 +1606,15 @@ elif nav == "Under the Hood":
         st.info("No evaluation results yet — run `python eval.py` to generate them.")
 
     st.subheader("Cumulative session telemetry")
-    if telemetry.RECORDS:
-        st.dataframe(pd.DataFrame(telemetry.RECORDS)[["task", "model", "mode", "latency_ms",
-                                                      "input_tokens", "output_tokens", "cost_usd", "cost_inr"]],
+    # Only this session's calls. telemetry.RECORDS is process-global and shared
+    # across browser sessions, so reading it directly showed other visitors'
+    # activity in a panel captioned "session telemetry".
+    session_calls = telemetry.slice_from(st.session_state.get("_tel_start", 0))
+    if session_calls:
+        st.dataframe(pd.DataFrame(session_calls)[["task", "model", "mode", "latency_ms",
+                                                  "input_tokens", "output_tokens", "cost_usd", "cost_inr"]],
                      hide_index=True, height=260)
-        s = telemetry.summarize(telemetry.RECORDS)
+        s = telemetry.summarize(session_calls)
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("LLM calls", s["llm_calls"])
         k2.metric("Tokens (in + out)", f"{s['input_tokens']:,} + {s['output_tokens']:,}")

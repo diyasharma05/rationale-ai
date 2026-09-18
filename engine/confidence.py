@@ -55,7 +55,14 @@ UNEXPLAINED_WEIGHT = 0.5      # a lead, not corroboration
 # fewer independent channels is less established, so the weighted mean is
 # scaled by how much of the total weight we were actually able to assess.
 # This is a judgement call, stated openly, and pinned by a test.
-ASSESSED_FLOOR = 0.85
+# Chosen as the smallest discount for which the invariant actually holds:
+# with signal held equal, a KPI cross-checked against a driver must not score
+# below one that could not be checked at all (tests/unit/test_confidence.py::
+# test_unverifiable_does_not_outscore_verified). At 0.85 the inversion
+# survived; below ~0.70 the ordering flips the other way and a weak signal
+# with full coverage outranks an overwhelming one. Picked to satisfy a stated
+# invariant, not to make any particular case pass a gate.
+ASSESSED_FLOOR = 0.75
 
 
 def signal_strength(z) -> float:

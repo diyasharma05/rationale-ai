@@ -51,6 +51,17 @@ def record(task: str, model: str, latency_ms: float, in_tok: int, out_tok: int, 
     return rec
 
 
+def reset():
+    """Clear the log, keeping absolute positions monotonic.
+
+    A bare RECORDS.clear() would leave _DROPPED stale, so bookmarks handed
+    out before the reset would point past the end.
+    """
+    global _DROPPED
+    _DROPPED += len(RECORDS)
+    RECORDS.clear()
+
+
 def mark():
     """Bookmark before an investigation; slice_from(mark) gives its calls.
 
