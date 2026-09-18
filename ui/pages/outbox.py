@@ -30,10 +30,12 @@ def render(ctx):
                    "will actually be sent.")
     else:
         st.info("**Dry run.** Approved messages are recorded, not delivered. Set "
-                "`RATIONALE_DISPATCH=mcp` with an MCP server configured to deliver "
-                "for real — delivery is opt-in on purpose, because an engine that "
-                "can message people is a different risk class from one that draws "
-                "a page.")
+                "`RATIONALE_DISPATCH=mcp` and `RATIONALE_MCP_COMMAND` to deliver "
+                "through any MCP server — the adapter discovers the server's posting "
+                "tool and maps arguments from its schema, and is tested end-to-end "
+                "against a real MCP server. Delivery is opt-in on purpose: an engine "
+                "that can message people is a different risk class from one that "
+                "draws a page.")
 
     msgs = outbox.messages()
     counts = outbox.summary()

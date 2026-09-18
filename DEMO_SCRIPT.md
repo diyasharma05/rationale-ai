@@ -12,6 +12,11 @@ streamlit run app.py
 - Click **↺ Reset demo state** in the sidebar before starting.
 - Optional, for the live-data beat: in a second terminal run
   `python -m ops.ingest --rate 2 --inject-anomaly 40`. Leave it running.
+- Optional, to post into a real Slack channel on stage (use a throwaway
+  channel): set `SLACK_BOT_TOKEN`, `SLACK_TEAM_ID`, `RATIONALE_MCP_CHANNEL`
+  (the channel id), `RATIONALE_MCP_COMMAND="npx -y @modelcontextprotocol/server-slack"`
+  and `RATIONALE_DISPATCH=mcp` in the shell before `streamlit run`. Test it
+  once the night before; if the venue network is doubtful, leave it in dry run.
 - Optional, if you want the container story on screen: `docker compose up`
   brings up the app, the API (`localhost:8000/docs`), Prometheus and Grafana.
 
@@ -123,8 +128,11 @@ to the people who can act**.
   purpose. An engine that can message people is a different risk class from
   one that draws a page. Delivery is one env var — `RATIONALE_DISPATCH=mcp` —
   and the transport is MCP, so it plugs into whatever the client already
-  runs: Slack, email, Jira, ServiceNow. Be honest that the MCP adapter is
-  written but not yet exercised against a live server.
+  runs: Slack, email, Jira, ServiceNow. The adapter is tested end-to-end
+  against a real MCP server (it discovers the posting tool and maps the
+  arguments from the server's schema). What it has not done unless you set
+  it up beforehand is post into an actual Slack workspace — that needs a
+  bot token; see the setup note above. Say which of those two you have.
 
 ## 5b. Where the data comes from (1 min)
 
