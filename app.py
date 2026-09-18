@@ -13,7 +13,9 @@ import yaml
 
 import feedback as fb
 import telemetry
-from engine import anomaly, confidence, db, pyramid, screening, stats_ml, stream
+from engine import (anomaly, confidence, db, economics, explore, policy,
+                    pyramid, screening,
+                    stats_ml, stream)
 
 try:                       # optional: observability is not required to run
     import metrics
@@ -23,7 +25,9 @@ except Exception:
         serve = staticmethod(lambda: False)
         record_scan = staticmethod(lambda *a, **k: None)
         record_investigation = staticmethod(lambda *a, **k: None)
-from llm import prompts
+from llm import fallback, prompts
+from services import intent as intent_service
+from services import scan as scan_service
 from llm.client import HAIKU, LLMClient
 
 # Grafana-style analysis window: any complete month with >= 6 months of history.
@@ -67,445 +71,57 @@ if "_tel_start" not in st.session_state:
     st.session_state["_tel_start"] = telemetry.mark()
 
 
-# --- validated reference palette (dataviz method), theme-aware ---
-def _theme_base():
-    """Single source of truth: the sidebar toggle (session), else server config."""
-    if "dark_mode" in st.session_state:
-        return "dark" if st.session_state["dark_mode"] else "light"
-    try:
-        from streamlit import config as _cfg
-        if _cfg.get_option("theme.base") in ("light", "dark"):
-            return _cfg.get_option("theme.base")
-    except Exception:
-        pass
-    return "dark"
+# Palette, fonts and the global stylesheet live in ui/theme.py. Importing it
+# applies the stylesheet; the names below are the same objects the rest of
+# this file has always used.
+from ui import theme as _theme
 
+C = _theme.C
+FONT_BODY, FONT_MONO = _theme.FONT_BODY, _theme.FONT_MONO
+_BASE = _theme._BASE
 
-_PALETTES = {
-    # "Chart recorder" system. Data is ink; color carries STATE only:
-    #   red       = alarm (breach, flagged, recording lamp)
-    #   amber     = watch                                  verdigris = steady/ok
-    #   brand purple = the action role (primary buttons, slider, focus) — set via
-    #   theme.primaryColor, never used for data or alarms.
-    # Surfaces are warm graphite / paper. Every fg/bg pair below is
-    # contrast-verified (>=4.5:1 text, >=3:1 marks).
-    "light": {   # paper recorder
-        "ink": "#20232a", "ink2": "#4b4f55", "muted": "#65696e",
-        "grid": "#e3dfd4", "axis": "#c9c4b8",
-        "panel": "#fbfaf6", "border": "#d9d4c8",
-        "chip": "rgba(32,35,42,0.05)",
-        "band": "rgba(110,115,120,0.16)",           # threshold band (neutral)
-        "series": "#3a3e45", "series_text": "#20232a", "fill": "rgba(58,62,69,0.10)",
-        "pos": "#3f7a5d", "neg": "#b42318",         # polarity = state colors
-        "good": "#3f7a5d", "critical": "#b42318", "warning": "#8f6410",
-        "good_text": "#3f7a5d", "critical_text": "#9a1f10", "warning_text": "#8f6410",
-        "llm": "#65696e",
-    },
-    "dark": {    # console
-        "ink": "#e7e4dc", "ink2": "#b9b5ab", "muted": "#8e959c",
-        "grid": "#262a30", "axis": "#31353c",
-        "panel": "#1d2025", "border": "#31353c",
-        "chip": "rgba(231,228,220,0.05)",
-        "band": "rgba(142,149,156,0.14)",
-        "series": "#c7c3b8", "series_text": "#e7e4dc", "fill": "rgba(199,195,184,0.10)",
-        "pos": "#63a68a", "neg": "#e5484d",
-        "good": "#63a68a", "critical": "#e5484d", "warning": "#e0a63c",
-        "good_text": "#7fb89e", "critical_text": "#ff7b81", "warning_text": "#e0a63c",
-        "llm": "#8e959c",
-    },
-}
-_BASE = _theme_base()
-C = _PALETTES[_BASE]
+_theme.apply()      # every run: Streamlit re-executes this script, not the module
 
-# Theme the app shell directly with CSS so the toggle takes effect instantly,
-# regardless of when Streamlit's own chrome catches up.
-_SHELL = {"dark": {"page": "#16181d", "side": "#1a1d22"},
-          "light": {"page": "#f4f2ec", "side": "#ece8de"}}[_BASE]
-# Typography : two voices. IBM Plex Sans is the console voice (labels, prose);
-# IBM Plex Mono is the instrument voice (every numeral, the clock, the tape,
-# z-values). A designed pairing with machine heritage — not the default stack.
-# NOTE: family names stay UNQUOTED (valid CSS) — these strings are injected into
-# single-quoted inline style attributes, where nested quotes would break the HTML
-FONT_BODY = "IBM Plex Sans, -apple-system, Segoe UI, system-ui, sans-serif"
-FONT_MONO = "IBM Plex Mono, Cascadia Code, Consolas, monospace"
-
-st.markdown(f"""<style>
-  /* No webfont @import: it was the only external network call in the UI, and
-     a captive portal or hanging DNS at the venue would stall first paint on a
-     render-blocking stylesheet fetch. The stacks below fall back to Segoe UI /
-     system-ui, and pick up IBM Plex automatically when it is installed locally
-     (install the fonts on the demo machine to keep the exact brand look). */
-
-  html, body, .stApp, .stApp * {{ font-family: {FONT_BODY}; }}
-  /* the global font override must NOT touch Streamlit's icon glyphs: they are
-     Material Symbols LIGATURES — in any other font they render as literal text
-     like "expand_more" and overlap the label */
-  .stApp [data-testid="stIconMaterial"],
-  .stApp [data-testid="stExpanderToggleIcon"],
-  .stApp span[class*="material-symbols"],
-  .stApp i[class*="material-icons"] {{
-      font-family: "Material Symbols Rounded" !important; }}
-  .stApp {{ background-color: {_SHELL['page']}; color: {C['ink']};
-            font-size: 15px; letter-spacing: -0.006em; }}
-  .stApp p, .stApp li {{ font-size: 0.94rem; line-height: 1.62; }}
-
-  /* heading scale : tighter tracking, decisive weights */
-  .stApp h1 {{ font-size: 1.72rem; font-weight: 750; letter-spacing: -0.028em;
-               line-height: 1.15; }}
-  .stApp h2 {{ font-size: 1.28rem; font-weight: 700; letter-spacing: -0.022em; }}
-  .stApp h3 {{ font-size: 1.08rem; font-weight: 650; letter-spacing: -0.016em; }}
-  .stApp h4 {{ font-size: 1.0rem;  font-weight: 650; letter-spacing: -0.012em; }}
-
-  /* code and SQL in a real mono face, slightly smaller than body */
-  .stApp code, .stApp pre, .stApp kbd {{ font-family: {FONT_MONO};
-               font-size: 0.82em; letter-spacing: 0; }}
-
-  /* captions : smaller, calmer */
-  [data-testid="stCaptionContainer"] {{ font-size: 0.8rem !important;
-               line-height: 1.5 !important; letter-spacing: -0.003em; }}
-
-  /* widget labels and buttons */
-  .stApp label {{ font-size: 0.84rem; font-weight: 500; }}
-  .stApp button p {{ font-weight: 600; letter-spacing: -0.006em; }}
-
-  /* metric widgets : numerals are the instrument voice */
-  [data-testid="stMetricValue"] {{ font-family: {FONT_MONO}; font-weight: 500;
-               letter-spacing: 0; font-variant-numeric: tabular-nums; }}
-
-  [data-testid="stHeader"] {{ background-color: {_SHELL['page']}; }}
-  [data-testid="stSidebar"] {{ background-color: {_SHELL['side']}; }}
-  [data-testid="stSidebar"] * {{ color: {C['ink2']}; }}
-  [data-testid="stSidebar"] h1 {{ color: {C['ink']}; }}
-  .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{ color: {C['ink']}; }}
-  .stApp p, .stApp li, .stApp label {{ color: {C['ink']}; }}
-  [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {{
-      color: {C['muted']} !important; }}
-  [data-testid="stMetricValue"] {{ color: {C['ink']}; }}
-  [data-testid="stMetricLabel"] * {{ color: {C['muted']}; }}
-  [data-testid="stExpander"] details {{ border-color: {C['border']}; }}
-  /* sidebar nav reads as bold menu entries */
-  [data-testid="stSidebar"] .stRadio label p {{
-      font-weight: 700; font-size: 1.02rem; }}
-  /* tab labels : sentence case, weight carries the hierarchy */
-  .stTabs button[data-baseweb="tab"] p {{
-      font-size: 0.94rem; font-weight: 600; letter-spacing: 0; }}
-  /* selectbox dropdown renders in a body-level portal, outside .stApp : theme it too */
-  div[data-baseweb="popover"] ul[data-baseweb="menu"] {{
-      background-color: {_SHELL['side']} !important; border: 1px solid {C['border']}; }}
-  div[data-baseweb="popover"] ul[data-baseweb="menu"] li[role="option"] {{
-      color: {C['ink']} !important; background-color: transparent; }}
-  div[data-baseweb="popover"] ul[data-baseweb="menu"] li[role="option"]:hover,
-  div[data-baseweb="popover"] ul[data-baseweb="menu"] li[aria-selected="true"] {{
-      background-color: {C['band']} !important; }}
-</style>""", unsafe_allow_html=True)
+# View components: same functions, same names, now in modules so they can be
+# rendered and tested without booting the whole app.
+from ui.components.actions import render_actions  # noqa: E402
+from ui.components.charts import (base_layout, confidence_components,  # noqa: E402
+                                  confidence_gauge, contribution_waterfall,
+                                  delta_bar, gate_bullets, hypothesis_bars,
+                                  sparkline)
+from ui.components.method import (METHODS, method_chip, method_chip_row,  # noqa: E402
+                                  method_strip)
+from ui.components.tiles import badge, pill, section_label, stat_tile  # noqa: E402
 
 
 # ---------------------------------------------------------------- helpers
-def fmt(v, unit):
-    return pyramid._fmt_value(v, unit)
+# One rupee formula for the whole system (engine/economics.py). The UI used
+# to carry its own copy alongside two more inside pyramid.investigate.
+fmt = economics.fmt_value
+monthly_impact = economics.monthly_impact
 
 
-def monthly_impact(an, unit):
-    if unit != "INR/day" or an.get("current") is None or an.get("mean") is None:
-        return None
-    return (an["current"] - an["mean"]) * 30
+human_line = fallback.kpi_one_liner
 
 
-def badge(text, color):
-    return f"<span style='color:{color};font-weight:600;font-size:0.85rem'>{text}</span>"
 
 
-def human_line(cfg, an):
-    """One plain-English sentence about a KPI : templated from the numbers, no LLM."""
-    name = cfg["name"].split(" (")[0]
-    if an["sparse"]:
-        return (f"{name} is new : only {an['n_history']} month(s) of history so far, "
-                f"so we're watching it rather than judging it.")
-    val, usual = fmt(an["current"], cfg["unit"]), fmt(an["mean"], cfg["unit"])
-    direction = "up" if (an["z"] or 0) > 0 else "down"
-    if an["material"]:
-        imp = monthly_impact(an, cfg["unit"])
-        tail = (f" If it holds, that's about {fmt(imp, 'INR')} a month."
-                if imp is not None else "")
-        return (f"{name} came in at {val} : {direction} about "
-                f"{abs(an['pct_vs_recent']):.0f}% from its usual {usual}. That's well outside "
-                f"its normal range, which is why it's flagged.{tail}")
-    return (f"{name} is at {val}, close to its usual {usual} : moving around, "
-            "but nothing unusual.")
 
 
-def pill(text, role):
-    """State indicator : a colored square glyph + sentence-case word in ink.
-    Deliberately not a capsule — state reads like an instrument lamp, and the
-    color never has to carry the text's contrast."""
-    accent = C.get(role, role)
-    return (f"<span style='white-space:nowrap'><span style='color:{accent};"
-            f"font-size:0.7rem'>▪</span> <span style='color:{C['ink2']};"
-            f"font-size:0.8rem;font-weight:600'>{text}</span></span>")
 
 
-def base_layout(fig, height):
-    fig.update_layout(
-        height=height, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=8, r=8, t=8, b=8), showlegend=False,
-        font=dict(color=C["ink2"], size=11, family="IBM Plex Mono, Consolas, monospace"),
-        hoverlabel=dict(font_size=12, font_family="IBM Plex Sans, 'Segoe UI', sans-serif"),
-    )
-    fig.update_xaxes(showgrid=False, linecolor=C["axis"], tickcolor=C["axis"])
-    fig.update_yaxes(gridcolor=C["grid"], zerolinecolor=C["axis"], linecolor=C["axis"])
-    return fig
 
 
-def sparkline(series, an, cfg, height=150):
-    """Grafana-style trend panel: area line, normal-range band (the actual signal-gate
-    threshold: mean ± min_abs_z·σ), dashed baseline, the analysis month marked, and a
-    dotted 3-month OLS forecast with its 90% prediction interval (non-LLM)."""
-    x, y = list(series["period"]), [float(v) for v in series["value"]]
-    fig = go.Figure()
-    lo_all, hi_all = list(y), list(y)
-
-    # 3-month OLS trend forecast (computed before layout so the range includes it)
-    fc, fx = None, []
-    if not an["sparse"] and len(y) >= 7:
-        fc = stats_ml.ols_forecast(y, horizon=3)
-        last_p = pd.Period(x[-1], freq="M")
-        fx = [x[-1]] + [str(last_p + i) for i in range(1, 4)]
-        lo_all += fc["lo"]
-        hi_all += fc["hi"]
-
-    if not an["sparse"] and an.get("mean") is not None and an.get("std"):
-        zt = cfg["materiality"]["min_abs_z"]
-        up, lo = an["mean"] + zt * an["std"], an["mean"] - zt * an["std"]
-        lo_all += [lo]
-        hi_all += [up]
-        bx = x + fx[1:]
-        fig.add_trace(go.Scatter(x=bx, y=[up] * len(bx), mode="lines",
-                                 line=dict(width=0), hoverinfo="skip"))
-        fig.add_trace(go.Scatter(x=bx, y=[lo] * len(bx), mode="lines", line=dict(width=0),
-                                 fill="tonexty", fillcolor=C["band"], hoverinfo="skip",
-                                 name="normal range"))
-        fig.add_trace(go.Scatter(x=bx, y=[an["mean"]] * len(bx), mode="lines",
-                                 line=dict(color=C["muted"], width=1, dash="dot"),
-                                 hoverinfo="skip"))
-    ymin, ymax = min(lo_all), max(hi_all)
-    pad = (ymax - ymin) * 0.12 or 1
-    floor = ymin - pad
-    fig.add_trace(go.Scatter(x=x, y=[floor] * len(x), mode="lines",
-                             line=dict(width=0), hoverinfo="skip"))
-    fig.add_trace(go.Scatter(
-        x=x, y=y, mode="lines", line=dict(color=C["series"], width=2),
-        fill="tonexty", fillcolor=C["fill"],
-        hovertemplate="%{x} · %{y:,.1f}<extra></extra>"))
-    if fc:
-        fig.add_trace(go.Scatter(x=fx, y=[y[-1]] + fc["hi"], mode="lines",
-                                 line=dict(width=0), hoverinfo="skip"))
-        fig.add_trace(go.Scatter(x=fx, y=[y[-1]] + fc["lo"], mode="lines",
-                                 line=dict(width=0), fill="tonexty", fillcolor=C["fill"],
-                                 hoverinfo="skip"))
-        fig.add_trace(go.Scatter(x=fx, y=[y[-1]] + fc["pred"], mode="lines",
-                                 line=dict(color=C["series"], width=2, dash="dot"),
-                                 hovertemplate="%{x} · %{y:,.1f}<extra>OLS trend forecast</extra>"))
-    if PERIOD in set(x):
-        cur = series[series["period"] == PERIOD]
-        flagged = bool(an.get("material"))
-        fig.add_trace(go.Scatter(
-            x=cur["period"], y=cur["value"], mode="markers",
-            marker=dict(size=10, color=C["critical"] if flagged else C["series"],
-                        line=dict(width=2, color=C["ink"] if flagged else C["axis"])),
-            hovertemplate="%{x} · %{y:,.1f}"
-                          + ("<extra>outside normal range</extra>" if flagged
-                             else "<extra>analysis month</extra>")))
-    base_layout(fig, height)
-    fig.update_yaxes(visible=False, range=[floor, ymax + pad])
-    fig.update_xaxes(tickvals=[x[0], PERIOD] + (fx[-1:] if fx else []),
-                     tickfont=dict(size=10, color=C["muted"]))
-    return fig
 
 
-def stat_tile(label, value, delta_txt=None, delta_color=None, chip=None, sub=None,
-              accent=None):
-    """Instrument tile: sentence-case label, mono numeral, plain-text context.
-    No left stripes, no capsules — a 2px top rule appears ONLY when the tile is
-    in an alarm/watch state (accent = critical/warning); everything else is quiet."""
-    top = (f"border-top:2px solid {accent};"
-           if accent in (C["critical"], C["warning"]) else "")
-    bits = [
-        f"<div style='font-size:0.8rem;font-weight:500;color:{C['muted']};"
-        f"margin-bottom:2px'>{label}</div>",
-        f"<div style='font-family:{FONT_MONO};font-size:1.5rem;font-weight:500;"
-        f"font-variant-numeric:tabular-nums;color:{C['ink']};line-height:1.2'>{value}</div>",
-    ]
-    row = []
-    if delta_txt:
-        row.append(f"<span style='color:{delta_color or C['ink2']};font-weight:600;"
-                   f"font-size:0.84rem'>{delta_txt}</span>")
-    if chip:
-        row.append(f"<span style='font-family:{FONT_MONO};font-size:0.72rem;"
-                   f"color:{C['muted']}'>{chip}</span>")
-    if row:
-        bits.append("<div style='margin-top:3px;display:flex;gap:10px;align-items:baseline'>"
-                    + " ".join(row) + "</div>")
-    if sub:
-        bits.append(f"<div style='font-size:0.75rem;color:{C['muted']};margin-top:4px'>{sub}</div>")
-    return (f"<div style='border:1px solid {C['border']};{top}"
-            f"border-radius:3px;padding:11px 14px;background:{C['panel']};"
-            f"min-height:96px'>{''.join(bits)}</div>")
 
 
-def delta_bar(table, unit, height=260, bad_when="down"):
-    """bad_when: which direction is BAD for this KPI ('down' for revenue-like,
-    'up' for complaint-like) : bad movement renders red, good renders brand purple."""
-    t = table.head(6).iloc[::-1]
-    is_bad = (lambda d: d > 0) if bad_when == "up" else (lambda d: d < 0)
-    colors = [C["neg"] if is_bad(d) else C["pos"] for d in t["delta"]]
-    fig = go.Figure(go.Bar(
-        x=t["delta"], y=t["member"].astype(str), orientation="h",
-        marker=dict(color=colors), text=[fmt(d, unit) for d in t["delta"]],
-        textposition="outside", cliponaxis=False,
-        customdata=[("" if pd.isna(s) else f" ({s * 100:.0f}% of total movement)")
-                    for s in t["share_of_delta"]],
-        # the share is omitted for non-additive KPIs (percentages, averages):
-        # per-member values do not sum to the national value, so there is no
-        # "share of the movement" to quote
-        hovertemplate="%{y}: %{x:,.1f}%{customdata}<extra></extra>"))
-    base_layout(fig, height)
-    fig.update_layout(bargap=0.35, margin=dict(l=8, r=70, t=8, b=8))
-    fig.update_xaxes(title="Δ vs trailing-3-month baseline", title_font=dict(size=10))
-    return fig
 
 
-def confidence_gauge(conf, height=96):
-    """Bullet gauge: confidence fill vs the two decision gates drawn as thresholds."""
-    v = conf["value"]
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=[1.0], y=[""], orientation="h", marker_color=C["band"],
-                         hoverinfo="skip"))
-    fig.add_trace(go.Bar(x=[v], y=[""], orientation="h", marker_color=C["series"],
-                         text=[f"{v:.0%}"], textposition="auto",
-                         textfont=dict(color=C["ink"], size=13),
-                         hovertemplate=f"confidence {v:.2f}<extra></extra>"))
-    for gate, label in ((confidence.EVIDENCE_GATE, "evidence gate"),
-                        (confidence.ACTION_GATE, "action gate")):
-        fig.add_shape(type="line", x0=gate, x1=gate, y0=-0.45, y1=0.45,
-                      line=dict(color=C["ink2"], width=1.5, dash="dash"))
-        fig.add_annotation(x=gate, y=0.62, text=label, showarrow=False,
-                           font=dict(size=9, color=C["muted"]))
-    base_layout(fig, height)
-    fig.update_layout(barmode="overlay", margin=dict(l=8, r=8, t=18, b=8))
-    fig.update_xaxes(range=[0, 1.0], tickvals=[0, 0.5, 1.0],
-                     tickformat=".0%", tickfont=dict(size=9, color=C["muted"]))
-    fig.update_yaxes(visible=False)
-    return fig
 
 
-def confidence_components(conf, height=118):
-    """Why the confidence is what it is: the three weighted ingredients."""
-    comps, w = conf["components"], conf["weights"]
-    order = ["evidence", "coverage", "signal"]
-    labels = {"signal": "signal strength", "coverage": "driver coverage",
-              "evidence": "evidence agreement"}
-    # A component can be None: this KPI declares no drivers, so coverage was
-    # not assessable. Show it as an empty rail rather than a zero bar -- "we
-    # could not check this" is a different statement from "this scored zero".
-    vals = [comps.get(k) for k in order]
-    fig = go.Figure(go.Bar(
-        x=[0 if v is None else v for v in vals],
-        y=[labels[k] + ("  (not assessable)" if comps.get(k) is None else "")
-           for k in order],
-        orientation="h",
-        marker_color=C["fill"], marker_line=dict(color=C["series"], width=1),
-        text=["not assessable" if v is None else f"{v:.2f}" for v in vals],
-        textposition="outside", cliponaxis=False,
-        customdata=[w[k] for k in order],
-        hovertemplate="%{y}: %{x:.2f} (weight %{customdata})<extra></extra>"))
-    base_layout(fig, height)
-    fig.update_layout(margin=dict(l=8, r=36, t=6, b=6))
-    fig.update_xaxes(range=[0, 1.12], visible=False)
-    fig.update_yaxes(tickfont=dict(size=10, color=C["ink2"]))
-    return fig
 
 
-def contribution_waterfall(table, unit, height=290):
-    """Baseline → per-member deltas → current: the classic 'where did it go' visual.
-    Only for additive KPIs (sums are meaningful)."""
-    t = table.sort_values("delta", key=lambda s: s.abs(), ascending=False).head(6)
-    base_total, cur_total = float(table["baseline"].sum()), float(table["current"].sum())
-    fig = go.Figure(go.Waterfall(
-        x=["3-mo baseline"] + list(t["member"].astype(str)) + ["this month"],
-        y=[base_total] + list(t["delta"]) + [0],
-        measure=["absolute"] + ["relative"] * len(t) + ["total"],
-        decreasing=dict(marker=dict(color=C["critical"])),
-        increasing=dict(marker=dict(color=C["pos"])),
-        totals=dict(marker=dict(color=C["axis"])),
-        connector=dict(line=dict(color=C["grid"], width=1)),
-        text=[fmt(base_total, unit)] + [fmt(d, unit) for d in t["delta"]] + [fmt(cur_total, unit)],
-        textposition="outside", textfont=dict(size=10),
-        hovertemplate="%{x}: %{text}<extra></extra>"))
-    base_layout(fig, height)
-    fig.update_layout(margin=dict(l=8, r=8, t=28, b=8))
-    fig.update_yaxes(visible=False)
-    fig.update_xaxes(tickfont=dict(size=10, color=C["ink2"]))
-    return fig
-
-
-def hypothesis_bars(hyps, height=None):
-    """Ranked explanatory drivers as bars: length = computed strength, color =
-    corroborated (brand) vs uncorroborated (gray)."""
-    hs = sorted(hyps, key=lambda h: h.get("rank", 99))
-    contract = db.load_contract()["kpis"]
-
-    def short(h):
-        if h.get("driver_id") in contract:
-            return contract[h["driver_id"]]["name"].split(" (")[0]
-        lbl = re.sub(r"^\s*H\d+\s*[:.\-]\s*", "", h["label"])
-        return (lbl[:34] + "…") if len(lbl) > 35 else lbl
-
-    def etext(h):
-        parts = ([f"{len(h['snippets'])} docs"] if h["snippets"] else []) \
-              + (["market event"] if h["events"] else [])
-        return " + ".join(parts) or "UNCORROBORATED"
-
-    names = [f"{h.get('rank', '?')}. {short(h)}" for h in hs][::-1]
-    vals = [h.get("strength", 0) for h in hs][::-1]
-    corro = [bool(h["snippets"] or h["events"]) for h in hs][::-1]
-    colors = [C["series"] if c else C["axis"] for c in corro]
-    texts = [etext(h) for h in hs][::-1]
-    fig = go.Figure(go.Bar(
-        x=vals, y=names, orientation="h", marker_color=colors,
-        text=texts, textposition="outside", cliponaxis=False,
-        textfont=dict(size=10),
-        hovertemplate="%{y}<br>strength %{x:.2f} · %{text}<extra></extra>"))
-    base_layout(fig, height or (70 + 44 * len(hs)))
-    fig.update_layout(bargap=0.42, margin=dict(l=8, r=110, t=6, b=6))
-    fig.update_xaxes(range=[0, 1.05], visible=False)
-    fig.update_yaxes(tickfont=dict(size=11, color=C["ink"]))
-    return fig
-
-
-def gate_bullets(an, cfg, height=118):
-    """How far past the signal gate each materiality test landed: bar length is
-    the measured value as a multiple of its own threshold (dashed line = gate)."""
-    m = cfg["materiality"]
-    rows = [("% change", abs(an["pct_vs_recent"] or 0), m["min_pct"],
-             f"{abs(an['pct_vs_recent'] or 0):.1f}%"),
-            ("z-score", abs(an["z"] or 0), m["min_abs_z"],
-             f"{abs(an['z'] or 0):.2f}")]
-    ratios = [min(v / max(thr, 1e-9), 3.0) for _, v, thr, _ in rows]
-    colors = [C["critical"] if v >= thr else C["axis"] for _, v, thr, _ in rows]
-    fig = go.Figure(go.Bar(
-        x=ratios, y=[r[0] for r in rows], orientation="h", marker_color=colors,
-        text=[r[3] for r in rows], textposition="outside", cliponaxis=False,
-        textfont=dict(size=11),
-        hovertemplate="%{y}: %{text} : the dashed line is this test's gate<extra></extra>"))
-    fig.add_shape(type="line", x0=1, x1=1, y0=-0.5, y1=1.5,
-                  line=dict(color=C["ink2"], width=1.5, dash="dash"))
-    fig.add_annotation(x=1, y=1.75, text="gate", showarrow=False,
-                       font=dict(size=9, color=C["muted"]))
-    base_layout(fig, height)
-    fig.update_layout(bargap=0.45, margin=dict(l=8, r=54, t=16, b=6))
-    fig.update_xaxes(range=[0, max(ratios) * 1.18 + 0.1], visible=False)
-    fig.update_yaxes(tickfont=dict(size=10, color=C["ink2"]))
-    return fig
 
 
 @st.cache_resource
@@ -521,132 +137,30 @@ def get_llm():
 
 
 def scan_kpis(role_id):
-    out = {}
-    for kpi_id, cfg in db.allowed_kpis(role_id).items():
-        s = db.kpi_series(kpi_id, role_id)
-        an = anomaly.analyze(s, PERIOD, cfg["materiality"], cfg.get("min_history", 6))
-        # Same multiplicity control the investigation applies, so the
-        # dashboard and the verdict can never disagree about what is flagged.
-        an = screening.screen(an, kpi_id, role_id, PERIOD)
-        out[kpi_id] = (cfg, s, an)
-    return out
+    """Thin wrapper: the scan itself lives in services/scan.py."""
+    return scan_service.scan(role_id, PERIOD)
 
 
-def severity_order(scan):
-    """Objective 1: prioritise material movements : flagged first, worst first."""
-    def key(item):
-        _, (cfg, s, an) = item
-        if an["material"]:
-            return (0, -abs(an["z"] or 0))
-        if an["sparse"]:
-            return (1, 0)
-        return (2, 0)
-    return [k for k, _ in sorted(scan.items(), key=key)]
+severity_order = policy.severity_order
 
 
-def section_label(text):
-    """Section header: sentence case, weight carries the hierarchy — no caps,
-    no tracking, no eyebrow chrome."""
-    st.markdown(f"<div style='font-size:0.97rem;font-weight:600;color:{C['ink']};"
-                f"margin:20px 0 6px'>{text}</div>", unsafe_allow_html=True)
 
 
-# how each analytical method is badged throughout the app
-METHODS = {
-    "sql": ("SQL", "series"),
-    "stats": ("statistics", "good"),
-    "ml": ("ML", "warning"),
-    "retrieval": ("retrieval", "ink2"),
-    "rules": ("rules", "ink2"),
-    "llm": ("LLM · words only", "llm"),
-}
 
 
-def method_chip(kind, text=None):
-    """Plain mono token, not a capsule — reads like a spec line, not UI chrome."""
-    label, _role = METHODS[kind]
-    return (f"<span style='font-family:{FONT_MONO};color:{C['ink2']};"
-            f"font-size:0.74rem;margin-right:14px;white-space:nowrap'>"
-            f"{text or label}</span>")
 
 
-def method_chip_row(kinds, texts=None):
-    chips = "".join(method_chip(k, (texts or {}).get(k)) for k in kinds)
-    st.markdown(f"<div style='margin:2px 0 6px'>{chips}</div>", unsafe_allow_html=True)
 
 
-def method_strip(r):
-    """'What built this answer' : operation counts by method, LLM last and
-    explicitly words-only. Rendered on every investigation result."""
-    mix = r.get("method_mix", {})
-    llm_calls = len(r.get("telemetry", []))
-    texts = {}
-    kinds = []
-    if mix.get("sql_queries"):
-        kinds.append("sql"); texts["sql"] = f"{mix['sql_queries']} SQL queries"
-    if mix.get("stat_tests"):
-        kinds.append("stats"); texts["stats"] = f"{mix['stat_tests']} statistical tests"
-    if mix.get("ml_models"):
-        kinds.append("ml"); texts["ml"] = f"{mix['ml_models']} ML models (IsolationForest)"
-    if mix.get("docs_retrieved"):
-        kinds.append("retrieval"); texts["retrieval"] = f"{mix['docs_retrieved']} documents retrieved"
-    kinds.append("llm")
-    texts["llm"] = (f"{llm_calls} LLM calls : words only" if llm_calls
-                    else "0 LLM calls : fully deterministic")
-    st.markdown(f"<div style='font-size:0.82rem;font-weight:600;color:{C['ink2']};"
-                f"margin-top:8px'>What built this answer</div>", unsafe_allow_html=True)
-    method_chip_row(kinds, texts)
+SYNONYMS = intent_service.SYNONYMS
 
 
-SYNONYMS = {"sales": "revenue", "money": "revenue", "income": "revenue",
-            "deliveries": "delivery", "shipping": "delivery", "late": "sla",
-            "clients": "accounts", "customers": "customer", "churn": "churn",
-            "ads": "marketing", "leads": "conversion", "basket": "basket"}
+match_kpi = intent_service.match_kpi
 
 
-def match_kpi(question, kpis):
-    """Plain-English question -> KPI id. Deterministic keyword scoring first;
-    a live Haiku fallback handles phrasing the keywords miss."""
-    toks = [SYNONYMS.get(t, t) for t in re.findall(r"[a-z]+", question.lower())]
-    scores = {}
-    for kpi_id, cfg in kpis.items():
-        name_toks = set(re.findall(r"[a-z]+", cfg["name"].lower()))
-        tag_toks = set(t.lower() for t in cfg.get("tags", []))
-        scores[kpi_id] = sum(3 for t in toks if t in name_toks) + \
-                         sum(1 for t in toks if t in tag_toks)
-    best = max(scores, key=scores.get)
-    ranked = sorted(scores.values(), reverse=True)
-    if scores[best] > 0 and (len(ranked) < 2 or ranked[0] > ranked[1]):
-        return best, "keyword match"
-    return None, None
+lever_approval = policy.lever_approval
 
 
-def lever_approval(cfg, lever_text):
-    for l in cfg.get("levers", []):
-        if l["lever"] == lever_text or l["lever"] in lever_text or lever_text in l["lever"]:
-            return l.get("approval", "—")
-    return "—"
-
-
-def render_actions(actions, cfg):
-    def row(label, value):
-        return (f"<div style='margin:3px 0'><span style='color:{C['muted']};"
-                f"font-size:0.8rem'>{label}</span><br>"
-                f"<span style='color:{C['ink']};font-size:0.92rem'>{value}</span></div>")
-
-    for row_start in range(0, len(actions), 2):
-        cols = st.columns(2)
-        for col, a in zip(cols, actions[row_start:row_start + 2]):
-            with col, st.container(border=True):
-                st.markdown(f"**{a.get('action', '')}**")
-                st.caption("for: " + re.sub(r"^\s*H\d+\s*[:.\-]\s*", "", a.get("driver", "—"))
-                           + f" · confidence {a.get('confidence', '—')}")
-                st.markdown(
-                    row("Owner · Decision right",
-                        f"{a.get('owner', '—')} : {lever_approval(cfg, a.get('lever', ''))}")
-                    + row("Expected impact", a.get("expected_impact", "—"))
-                    + row("How we'll know it's working", a.get("monitoring", "—")),
-                    unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------- sidebar
@@ -830,7 +344,7 @@ if nav == "Dashboard":
                         src = db.load_contract()["sources"][cfg["source"]]
                         st.caption(f"source: {src['system']} · {src['grain']} · refreshed "
                                    f"{src['refresh']} · as of {fresh[cfg['source']]['as_of']}")
-                        st.plotly_chart(sparkline(s, an, cfg, height=120), width="stretch",
+                        st.plotly_chart(sparkline(s, an, cfg, PERIOD, height=120), width="stretch",
                                         config={"displayModeBar": False}, key=f"pop_spark_{k}")
                         if st.button("🔍 Investigate why", key=f"pop_inv_{k}", type="primary",
                                      width="stretch"):
@@ -871,7 +385,7 @@ if nav == "Dashboard":
                 imp = monthly_impact(an, cfg["unit"])
                 st.caption(f"≈ {fmt(imp, 'INR')} /month vs baseline" if an["material"] and imp is not None
                            else f"{cfg['name'].split(' (')[0]} · monthly · {db.load_contract()['sources'][cfg['source']]['system'].split(' (')[0]}")
-                st.plotly_chart(sparkline(s, an, cfg), width="stretch",
+                st.plotly_chart(sparkline(s, an, cfg, PERIOD), width="stretch",
                                 config={"displayModeBar": False}, key=f"spark_{kpi_id}")
                 b1, b2 = st.columns([1, 1])
                 with b1.popover("▸ details", width="stretch"):
@@ -1110,17 +624,13 @@ elif nav == "Data":
     drange = c3.slider("Time range", min_value=dmin, max_value=dmax, value=(dmin, dmax),
                        format="YYYY-MM-DD")
 
-    col = _DATE_COLS[src]
-    where = db.role_where(role_id)
-    vol_sql = (f"SELECT date_trunc('{grain}', CAST({col} AS DATE)) AS bucket, COUNT(*) AS rows_ "
-               f"FROM {src} WHERE CAST({col} AS DATE) BETWEEN DATE '{drange[0]}' "
-               f"AND DATE '{drange[1]}'{where} GROUP BY 1 ORDER BY 1")
+    # SQL construction lives in engine/explore.py: sources and grains are
+    # allowlisted and the date bounds are bound parameters, so the slider
+    # cannot reach the statement.
     t0 = time.perf_counter()
     try:
-        vol = db.query(vol_sql)
-        latest = db.query(
-            f"SELECT * FROM {src} WHERE CAST({col} AS DATE) BETWEEN DATE '{drange[0]}' "
-            f"AND DATE '{drange[1]}'{where} ORDER BY CAST({col} AS DATE) DESC LIMIT 50")
+        vol_sql, vol = explore.volume(src, grain, role_id, drange[0], drange[1])
+        _, latest = explore.latest_rows(src, role_id, drange[0], drange[1])
     except Exception as e:
         st.error(f"Query failed: {e}")
         st.stop()
@@ -1181,13 +691,8 @@ elif nav == "Investigation":
     # investigation whenever the period changed, and in live mode fired a
     # blocking Haiku intent call on every single widget interaction.
     if q and asked:
-        matched, how = match_kpi(q, kpis)
-        if matched is None and llm.mode == "live":
-            data = llm.json_call("intent", prompts.INTENT_SYSTEM,
-                                 f"KPIs: {[(k, kpis[k]['name']) for k in ids]}\nQuestion: {q}",
-                                 model=HAIKU, max_tokens=300)
-            if data and data.get("kpi_id") in ids:
-                matched, how = data["kpi_id"], "Claude intent"
+        # keyword scoring, then a live-only model fallback (services/intent.py)
+        matched, how = intent_service.resolve(q, kpis, llm)
         if matched:
             st.session_state.kpi_sel = matched
             st.session_state._autorun = True
@@ -1240,7 +745,7 @@ elif nav == "Investigation":
         section_label("The verdict")
         vL, vR = st.columns([3, 2])
         with vL:
-            st.plotly_chart(sparkline(r["series"], an, cfg, height=252), width="stretch",
+            st.plotly_chart(sparkline(r["series"], an, cfg, PERIOD, height=252), width="stretch",
                             config={"displayModeBar": False}, key=f"inv_trend_{kpi_id}")
             cap = []
             if not an["sparse"]:

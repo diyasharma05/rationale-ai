@@ -5,7 +5,7 @@ period, role)` is already a pure function of its inputs given the data, so
 exposing it needs no rearchitecting -- which is the claim the deployment story
 rests on: Streamlit is a client of the engine, not the system.
 
-Run:  uvicorn service.api:app --port 8000
+Run:  uvicorn api.main:app --port 8000
 Docs: http://localhost:8000/docs
 """
 import os

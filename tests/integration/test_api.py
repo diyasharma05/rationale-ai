@@ -8,7 +8,7 @@ import pytest
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from service.api import app  # noqa: E402
+from api.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="module")

@@ -54,3 +54,34 @@ def template_narrative(ctx: dict) -> dict:
             "escalation_brief": f"Escalation: {kpi} moved {mv}; automated diagnosis "
                                 "abstained. Requesting human review.",
             "_fallback": True}
+
+def kpi_one_liner(cfg: dict, an: dict) -> str:
+    """One plain-English sentence about a KPI : templated from the numbers,
+    no LLM. Peer of template_narrative, and lives here for the same reason:
+    deterministic prose belongs with the other deterministic prose, not in
+    the view layer.
+
+    Direction and magnitude both come from the trailing-3 comparison. The
+    earlier version in app.py read the direction off sign(z) (vs the long-run
+    mean) while printing the percentage vs the trailing 3 months, so a metric
+    that fell could be described as having risen.
+    """
+    from engine import economics
+
+    name = cfg["name"].split(" (")[0]
+    if an["sparse"]:
+        return (f"{name} is new : only {an['n_history']} month(s) of history so far, "
+                f"so we're watching it rather than judging it.")
+    val = economics.fmt_value(an["current"], cfg["unit"])
+    usual = economics.fmt_value(an["mean"], cfg["unit"])
+    pct = an.get("pct_vs_recent") or 0.0
+    direction = "up" if pct > 0 else "down"
+    if an["material"]:
+        imp = economics.monthly_impact(an, cfg["unit"])
+        tail = (f" If it holds, that's about {economics.fmt_value(imp, 'INR')} a month."
+                if imp is not None else "")
+        return (f"{name} came in at {val} : {direction} about "
+                f"{abs(pct):.0f}% from its usual {usual}. That's well outside "
+                f"its normal range, which is why it's flagged.{tail}")
+    return (f"{name} is at {val}, close to its usual {usual} : moving around, "
+            "but nothing unusual.")

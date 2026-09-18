@@ -19,7 +19,8 @@ import telemetry
 from llm import fallback, prompts
 from llm.client import HAIKU, SONNET
 
-from . import anomaly, confidence, contribution, db, drivers, retrieve, screening
+from . import (anomaly, confidence, contribution, db, drivers, economics,
+               retrieve, screening)
 
 EARLY_EXIT = 0.90
 
@@ -31,16 +32,9 @@ EARLY_EXIT = 0.90
 SPARSE_CONFIDENCE = 0.25
 
 
-def _fmt_value(v, unit):
-    if v is None:
-        return "n/a"
-    if unit.startswith("INR"):
-        suffix = "/day" if unit.endswith("/day") else ""
-        base = f"₹{v/1e7:.2f} Cr" if abs(v) >= 1e7 else f"₹{v/1e5:.2f} L"
-        return base + suffix
-    if unit == "%":
-        return f"{v:.1f}%"
-    return f"{v:,.1f} {unit}"
+# kept as a module-level alias: it is referenced throughout this file and by
+# the UI, which used to reach for the private name
+_fmt_value = economics.fmt_value
 
 
 def _movement_str(an, unit, technical: bool = True):
@@ -363,8 +357,9 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         "gate": {"name": "Signal gate", "passed": True,
                  "detail": (f"z={an['z']} (needs ≥{cfg['materiality']['min_abs_z']}), "
                             f"Δ={an['pct_vs_recent']}% (needs ≥{cfg['materiality']['min_pct']}%)"
-                            + (f", business impact ≈ {_fmt_value(((an['current'] or 0) - (an['mean'] or 0)) * 30, 'INR')}/month"
-                               if cfg["unit"] == "INR/day" else "")
+                            + (f", business impact ≈ "
+                               f"{economics.fmt_value(economics.monthly_impact(an, cfg['unit']), 'INR')}/month"
+                               if economics.monthly_impact(an, cfg['unit']) is not None else "")
                             + ". Focus: " + (", ".join(contrib["focus_regions"])
                                or "no regional concentration (movement is spread evenly, "
                                   "which points away from a regional cause)"))},
@@ -513,8 +508,9 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         # the offline template narrative, which the sanitizer would otherwise
         # discard wholesale for containing "z=".
         "movement": _movement_str(an, cfg["unit"], technical=False),
-        "rupee_impact": (_fmt_value(((an["current"] or 0) - (an["mean"] or 0)) * 30, "INR")
-                         + " per month (approx)" if cfg["unit"] == "INR/day" else None),
+        "rupee_impact": (f'{economics.fmt_value(_impact, "INR")} per month (approx)'
+                         if (_impact := economics.monthly_impact(an, cfg["unit"])) is not None
+                         else None),
         "focus_regions": contrib["focus_regions"],
         # "diffuse" is a real finding, not a missing value: a movement spread
         # evenly across every region argues against a regional cause and
