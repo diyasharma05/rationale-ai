@@ -55,13 +55,23 @@ _PALETTES = {
         "llm": "#8e959c",
     },
 }
+# Bound at import, then REFRESHED IN PLACE by apply() on every run.
+#
+# app.py used to recompute this at the top of each script execution, so the
+# dark-mode toggle simply worked. Moving it into a module froze it at first
+# import -- the toggle would have kept flipping Streamlit's own chrome while
+# every chart and tile stayed on the palette from whenever this module
+# happened to load. Mutating the dict rather than rebinding it means the
+# `from ui.theme import C` references scattered through the components stay
+# live without any of them needing to know.
 _BASE = _theme_base()
-C = _PALETTES[_BASE]
+C = dict(_PALETTES[_BASE])
 
 # Theme the app shell directly with CSS so the toggle takes effect instantly,
 # regardless of when Streamlit's own chrome catches up.
-_SHELL = {"dark": {"page": "#16181d", "side": "#1a1d22"},
-          "light": {"page": "#f4f2ec", "side": "#ece8de"}}[_BASE]
+_SHELLS = {"dark": {"page": "#16181d", "side": "#1a1d22"},
+           "light": {"page": "#f4f2ec", "side": "#ece8de"}}
+_SHELL = dict(_SHELLS[_BASE])      # refreshed in place by apply(), like C
 # Typography : two voices. IBM Plex Sans is the console voice (labels, prose);
 # IBM Plex Mono is the instrument voice (every numeral, the clock, the tape,
 # z-values). A designed pairing with machine heritage — not the default stack.
@@ -71,12 +81,19 @@ FONT_BODY = "IBM Plex Sans, -apple-system, Segoe UI, system-ui, sans-serif"
 FONT_MONO = "IBM Plex Mono, Cascadia Code, Consolas, monospace"
 
 def apply():
-    """Emit the stylesheet.
+    """Resolve the active theme and emit the stylesheet.
 
     Must be called on every script run. A module-level st.markdown() would
     execute only on first import -- Python caches the module, Streamlit does
-    not re-import it -- so every rerun after the first would render unstyled.
+    not re-import it -- so every rerun after the first would render unstyled,
+    and the palette would be stuck on whatever the theme was at import time.
     """
+    global _BASE
+    _BASE = _theme_base()
+    C.clear()
+    C.update(_PALETTES[_BASE])
+    _SHELL.clear()
+    _SHELL.update(_SHELLS[_BASE])
     st.markdown(f"""<style>
   /* No webfont @import: it was the only external network call in the UI, and
      a captive portal or hanging DNS at the venue would stall first paint on a

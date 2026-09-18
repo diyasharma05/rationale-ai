@@ -125,3 +125,25 @@ def test_live_feed_advances_and_stops():
     at.radio(key="nav").set_value(NAV_LIVE).run()
     assert not at.exception, at.exception
     assert "Events ingested" in all_text(at)
+
+
+def test_dark_mode_actually_repaints_the_charts():
+    """The palette is resolved per run and refreshed in place.
+
+    app.py used to recompute it at the top of every script execution, so the
+    toggle just worked. Moving the theme into a module froze it at first
+    import: Streamlit's own chrome would have kept flipping while every chart
+    and tile stayed on whichever palette happened to load first.
+    """
+    from ui import theme
+
+    at = app_test()
+    at.session_state["dark_mode"] = False
+    at.run()
+    light = theme._SHELL["page"]
+
+    at = app_test()
+    at.session_state["dark_mode"] = True
+    at.run()
+    assert theme._SHELL["page"] != light
+    assert theme._BASE == "dark"
