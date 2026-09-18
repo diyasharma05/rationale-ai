@@ -51,6 +51,15 @@ corroborating the revenue drop and drops to last place.
 identically. A correction now demotes the explanation it rejects, and a
 conclusion a human marked wrong is dropped from the evidence pool.
 
+**It closes the last mile.** A conclusion becomes a message to the person the
+*contract* names as the lever's owner, carrying the approval the contract
+requires — the model writes the sentence but never chooses the recipient, the
+same rule as the numbers one layer up. Nothing sends without a human approving
+it in the Outbox; TENTATIVE verdicts go out marked *for review*; an abstention
+becomes an escalation asking a specific question; no-signal produces silence.
+Delivery is a dry run by default, with an MCP transport behind the same
+interface so it plugs into whatever the client already runs.
+
 **It deploys.** `docker compose up` brings up the app, the same engine behind a
 FastAPI service, Prometheus and Grafana. RBAC is enforced at the API boundary,
 not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on

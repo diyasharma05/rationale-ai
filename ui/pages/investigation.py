@@ -10,10 +10,12 @@ import yaml
 
 import feedback as fb
 import telemetry
-from engine import (anomaly, confidence, db, economics, explore, policy,
+from engine import (anomaly, confidence, db, dispatch, economics, explore,
+                    policy,
                     pyramid, screening, stats_ml, stream)
 from llm import prompts
 from services import intent as intent_service
+from services import outbox as outbox_service
 from services import scan as scan_service
 from ui.common import (C, badge, confidence_components, confidence_gauge,
                        contribution_waterfall, delta_bar, fmt,
@@ -326,6 +328,25 @@ def render(ctx):
                            "(signal gate / sparse guard).")
 
         # ---- feedback ----
+        # ---- dispatch: route the conclusion to whoever the contract says ----
+        if r.get("inv_id") and r["outcome"] in ("actions", "tentative", "abstain"):
+            st.subheader("Send this to the people who can act")
+            preview = dispatch.route(r, cfg)
+            if not preview:
+                st.caption("Nothing to route: this conclusion carries no action.")
+            else:
+                for m in preview:
+                    st.caption(f"→ **{m.to}**"
+                               + (f" (approval: {m.cc})" if m.cc else "")
+                               + f" — {m.kind.replace(chr(95), chr(32))}")
+                if st.button("Draft dispatch", key=f"dispatch_{r['inv_id']}"):
+                    ids = outbox_service.draft(r, cfg, actor=role_id)
+                    if ids:
+                        st.toast(f"{len(ids)} message(s) drafted : approve them in "
+                                 "the Outbox.", icon="📤")
+                    else:
+                        st.toast("Already drafted for this investigation.", icon="ℹ")
+
         if r.get("inv_id"):
             st.subheader("Was this diagnosis right?")
             fc1, fc2, fc3 = st.columns([1, 1, 4])

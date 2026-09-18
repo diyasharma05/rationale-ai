@@ -95,6 +95,37 @@ On the revenue investigation: **👎 Wrong** with a correction, then **Re-run**.
   > changes the ranking, and a conclusion a human rejected is dropped from the
   > evidence pool entirely."
 
+## 5a. The last mile — governed dispatch (1 min)
+
+On the fulfilment SLA investigation (it reached ACTIONS): scroll to **Send this
+to the people who can act**.
+
+- The preview shows where each action goes: **VP Operations**, approval
+  **COO (pre-approved playbook per Nov-2025 postmortem)**. Say where that came
+  from:
+  > "The model didn't pick that recipient. The contract did. Every lever in
+  > the semantic contract names who acts and who signs off. The model writes
+  > the sentence; it never chooses the envelope. Same rule as the numbers,
+  > one layer up."
+- **Draft dispatch** → Nav → **Outbox**. The message is there, in full: the
+  movement, the recommended action, the expected effect, how you'd know it
+  worked, the decision right, the confidence stated honestly, the evidence
+  IDs. Nothing has been sent.
+- **Approve & send.** It moves to *sent*, with who approved it and when.
+  > "Nothing leaves without a person. The engine drafts and routes; a human
+  > decides. That is the abstain principle applied to the outbound path."
+- Now go back and look at the **revenue** (TENTATIVE) preview: the messages
+  are marked FOR REVIEW and the body says *below the action threshold, not as
+  a diagnosis*. And **marketing conversion** (ABSTAIN) produces one message —
+  an escalation to the KPI owner asking a specific question, not an
+  instruction to anyone.
+- If asked why it isn't posting to real Slack: it's a dry run by default, on
+  purpose. An engine that can message people is a different risk class from
+  one that draws a page. Delivery is one env var — `RATIONALE_DISPATCH=mcp` —
+  and the transport is MCP, so it plugs into whatever the client already
+  runs: Slack, email, Jira, ServiceNow. Be honest that the MCP adapter is
+  written but not yet exercised against a live server.
+
 ## 5b. Where the data comes from (1 min)
 
 Nav → **Lineage**. This is the answer to "is this real data?", and the honest

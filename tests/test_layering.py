@@ -81,6 +81,6 @@ def test_app_shell_stays_small():
 
 def test_every_page_exposes_render():
     from ui.pages import PAGES as REGISTRY
-    assert len(REGISTRY) == 7
+    assert len(REGISTRY) == 8
     for name, fn in REGISTRY.items():
         assert callable(fn), name

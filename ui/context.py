@@ -63,6 +63,16 @@ class Nav:
         st.session_state["_nav_target"] = page
         st.rerun()
 
+    def refresh(self):
+        """Re-render the current page after a write.
+
+        Not navigation, but the same kind of thing: control flow. Pages that
+        mutate state (approving a message, discarding one) need the list they
+        just changed to redraw, and routing it through here keeps st.rerun()
+        in one place instead of spreading back through the page bodies.
+        """
+        st.rerun()
+
     def investigate(self, kpi_id: str, period: str = None):
         st.session_state["kpi_sel"] = kpi_id
         st.session_state["_autorun"] = True

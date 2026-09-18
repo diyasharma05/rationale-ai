@@ -23,7 +23,8 @@ def render_actions(actions, cfg):
                            + f" · confidence {a.get('confidence', '—')}")
                 st.markdown(
                     row("Owner · Decision right",
-                        f"{a.get('owner', '—')} : {policy.lever_approval(cfg, a.get('lever', ''))}")
+                        f"{policy.lever_owner(cfg, a.get('lever', ''))} : "
+                      f"{policy.lever_approval(cfg, a.get('lever', ''))}")
                     + row("Expected impact", a.get("expected_impact", "—"))
                     + row("How we'll know it's working", a.get("monitoring", "—")),
                     unsafe_allow_html=True)
