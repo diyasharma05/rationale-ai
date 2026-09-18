@@ -28,3 +28,6 @@ jobs:
 
       - name: Accuracy harness must not regress
         run: python eval.py --check
+
+      - name: Latency budget and concurrency correctness
+        run: python -m ops.bench --check --json

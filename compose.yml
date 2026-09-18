@@ -1,0 +1,43 @@
+# Full local stack:  docker compose up
+#
+#   app        http://localhost:8501   the analyst-facing client
+#   api        http://localhost:8000/docs   the same engine as a service
+#   grafana    http://localhost:3000   engine operations (anonymous)
+#   prometheus http://localhost:9090
+#
+# app and api are the SAME image and the same engine — which is the point of
+# the deployment story: the UI is one client, not the system.
+services:
+  app:
+    build: .
+    ports: ["8501:8501"]
+    environment:
+      MOCK_MODE: "1"
+      RATIONALE_METRICS: "1"        # expose /metrics for Prometheus
+
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      MOCK_MODE: "1"
+    command: ["uvicorn", "service.api:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    depends_on: [app]
+    command: ["--config.file=/etc/prometheus/prometheus.yml",
+              "--storage.tsdb.retention.time=7d"]
+    volumes: ["./ops/prometheus-compose.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:latest
+    depends_on: [prometheus]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/rationale.json
+      GF_USERS_DEFAULT_THEME: dark
+    volumes: ["./ops/grafana/provisioning:/etc/grafana/provisioning:ro"]
+    ports: ["3000:3000"]

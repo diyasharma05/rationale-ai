@@ -1,0 +1,13 @@
+# Scrape config for the composed stack (the app is a sibling service, not the
+# docker host — ops/prometheus.yml targets host.docker.internal for the
+# "app on host, stack in Docker" setup instead).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: rationale-engine
+    static_configs:
+      - targets: ["app:9108"]
+        labels:
+          service: rationale-ai

@@ -1,0 +1,10 @@
+.git
+.github
+__pycache__
+*.pyc
+.venv
+venv
+data/state
+tests/ui/__snapshots__
+*.pptx
+*.pdf
