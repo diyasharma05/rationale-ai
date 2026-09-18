@@ -160,6 +160,50 @@ def source_freshness():
     return out
 
 
+@lru_cache(maxsize=8)
+def source_stats(role_id: str):
+    """Row count and date span per source table, as THIS ROLE sees them.
+
+    Answers "where is this number coming from" with measured facts rather
+    than a diagram. Role-scoped on purpose: a lineage page that reported
+    85,222 rows to someone whose every query is filtered to two regions
+    would be describing a system they cannot actually see, and it would be
+    the one place in the app where the row filter did not apply.
+    """
+    contract = load_contract()
+    where = role_where(role_id)
+    out = {}
+    for table, col in DATE_COLS.items():
+        row = query(f"SELECT COUNT(*) AS n, MIN({col}) AS lo, MAX({col}) AS hi "
+                    f"FROM {table} WHERE 1=1{where}").iloc[0]
+        meta = contract["sources"].get(table, {})
+        out[table] = {
+            "system": meta.get("system", table),
+            "grain": meta.get("grain", ""),
+            "refresh": meta.get("refresh", ""),
+            "rows": int(row["n"]),
+            "first": str(pd.Timestamp(row["lo"]).date()),
+            "last": str(pd.Timestamp(row["hi"]).date()),
+        }
+    return out
+
+
+def kpi_lineage(kpi_id: str, role_id: str) -> dict:
+    """The full chain behind one KPI: which system, which SQL, which levers."""
+    cfg = load_contract()["kpis"][kpi_id]
+    return {
+        "name": cfg["name"],
+        "unit": cfg["unit"],
+        "owner": cfg.get("owner"),
+        "source": cfg.get("source"),
+        "system": load_contract()["sources"].get(cfg.get("source"), {}).get("system", "—"),
+        "sql": kpi_sql(kpi_id, role_id),
+        "dimensions": cfg.get("dimensions", []),
+        "drivers": [d.get("kpi") or d.get("metric") for d in cfg.get("drivers", [])],
+        "materiality": cfg.get("materiality", {}),
+    }
+
+
 def system_for_snippet(snippet: dict) -> str:
     """Best-effort mapping of an evidence document to its source system."""
     f = snippet.get("file", "")

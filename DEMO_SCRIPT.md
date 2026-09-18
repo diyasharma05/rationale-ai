@@ -10,6 +10,8 @@ streamlit run app.py
 - **Offline by default.** No key ⇒ cached fixtures. Unplug the network and the
   whole demo below is unchanged.
 - Click **↺ Reset demo state** in the sidebar before starting.
+- Optional, for the live-data beat: in a second terminal run
+  `python -m ops.ingest --rate 2 --inject-anomaly 40`. Leave it running.
 - Optional, if you want the container story on screen: `docker compose up`
   brings up the app, the API (`localhost:8000/docs`), Prometheus and Grafana.
 
@@ -56,6 +58,11 @@ Investigation → type **"Why did revenue fall in July?"** → **Ask**.
   → monitoring.
 - Open **"Under the hood for this run"**: wall time, tokens, ₹ cost.
 
+> On the Live Feed, call it a **replay**, never "live". It walks real rows
+> with a date cursor and the detector is genuine, but the clock is not.
+> "Flight recorder" is accurate and lands just as well; the Lineage page is
+> where you show something genuinely live.
+
 ## 3. The hallucination guard — abstaining (1.5 min)
 
 Investigate **Marketing Conversion Rate** (flagged, −16%).
@@ -87,6 +94,30 @@ On the revenue investigation: **👎 Wrong** with a correction, then **Re-run**.
   > "An upvote and a downvote used to be the same thing. Now a correction
   > changes the ranking, and a conclusion a human rejected is dropped from the
   > evidence pool entirely."
+
+## 5b. Where the data comes from (1 min)
+
+Nav → **Lineage**. This is the answer to "is this real data?", and the honest
+answer has two halves.
+
+- **Provenance.** Four named source systems with measured row counts, grains,
+  declared refresh cadences and actual date spans. Pick a KPI and the page
+  shows the whole chain: system → DuckDB table → the governed SQL → the row
+  filter for this role → the anomaly test → multiplicity control.
+- Switch role to **Sales Head** and the row counts change with you: 85,222
+  orders becomes 40,542. The row filter applies to the lineage page too.
+- **Say the synthetic part first, before anyone asks.** The dataset is
+  generated with known causes planted in it, and that is *why* there is a
+  precision and recall number at all. Real client data arrives without an
+  answer key.
+- **Live ingestion.** Scroll to the bottom. A second process is appending
+  events right now; the counter climbs, and once North-West degrades the same
+  rolling rule flags it:
+  > "The Live Feed you saw earlier is a replay — a flight recorder of the
+  > incident, at speed. This is different: that data did not exist when this
+  > page loaded. It proves the ingestion path is real, not a fixture."
+- It writes to its own lane, not into the demo tables — mutating those would
+  move the numbers you just showed. Worth saying; it reads as discipline.
 
 ## 6. Does it actually work? (1 min)
 

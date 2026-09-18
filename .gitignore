@@ -24,3 +24,6 @@ VIDEO_SCRIPT.md
 # eval.py's throwaway ledger (the scored results themselves are tracked at
 # data/eval_results.json so the UI panel survives a fresh clone)
 data/state/_eval/
+
+# live ingestion lane (ops/ingest.py) — runtime scratch, never committed
+data/live/

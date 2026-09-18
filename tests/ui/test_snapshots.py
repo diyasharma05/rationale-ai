@@ -16,7 +16,8 @@ import pytest
 from tests.conftest import all_text, app_test
 
 SNAP_DIR = pathlib.Path(__file__).parent / "__snapshots__"
-PAGES = ["Dashboard", "Data", "Investigation", "Decision Ledger", "Under the Hood"]
+PAGES = ["Dashboard", "Data", "Investigation", "Lineage", "Decision Ledger",
+         "Under the Hood"]
 ROLES = ["analyst", "ceo", "sales_head_north"]
 
 # Anything that legitimately changes run to run.
@@ -49,6 +50,10 @@ def isolated_shared_state():
     import telemetry
     telemetry.reset()
     feedback.reset_ledger()
+    # the live ingestion lane is written by a separate process; clear it so a
+    # snapshot does not depend on whether someone left the writer running
+    from ops import ingest
+    ingest.reset()
     yield
 
 
