@@ -202,7 +202,9 @@ def render(ctx):
         if has_hyp:
             with st.expander("Hypothesis details : evidence IDs, sources, full labels"):
                 hdf = pd.DataFrame([{
-                    "rank": h.get("rank"), "hypothesis": h["label"],
+                    "rank": h.get("rank"),
+                    "hypothesis": (f"[human: {h.get('actor')}] " if h.get("source") == "human" else "")
+                                  + h["label"],
                     "strength": h.get("strength", 0.0),
                     "evidence": ", ".join(h["snippets"]) or "—",
                     "external": "yes" if h["events"] else "—",
@@ -219,7 +221,31 @@ def render(ctx):
         if n.get("actions"):
             render_actions(n["actions"], cfg)
         if n.get("clarifying_question"):
+            # The abstain loop. The engine asked; this is where a human answers,
+            # and the answer becomes evidence with human provenance on re-run.
             st.warning(f"**The engine needs a human answer first:** {n['clarifying_question']}")
+            prior = fb.answers_for(kpi_id, PERIOD)
+            for a in prior:
+                tag = {True: "confirmed", False: "ruled out", None: "noted"}.get(a.get("confirms"))
+                st.caption(f"Answered by **{a.get('actor')}** ({tag}): {a.get('answer')}")
+            with st.form(f"answer_{r['inv_id']}", border=True):
+                st.markdown("**Answer it here** : the answer is recorded with your role as its "
+                            "source, becomes evidence, and the investigation re-runs.")
+                verdict = st.radio("Does this confirm the suspected cause?",
+                                   ["Yes — it confirms it", "No — rules it out", "Just information"],
+                                   horizontal=True, key=f"ans_kind_{r['inv_id']}")
+                answer = st.text_input("Your answer", key=f"ans_txt_{r['inv_id']}",
+                                       placeholder="e.g. Yes — a checkout tracking change shipped on 3 July")
+                if st.form_submit_button("Record answer and re-run") and answer.strip():
+                    confirms = {"Yes — it confirms it": True, "No — rules it out": False}.get(verdict)
+                    fb.log_answer(r["inv_id"], kpi_id, PERIOD, n["clarifying_question"],
+                                  answer.strip(), actor=role_id, confirms=confirms)
+                    st.session_state.investigations.pop(key, None)
+                    st.session_state["_autorun"] = True
+                    ctx.nav.refresh()
+        for lead in r.get("eliminated_leads") or []:
+            st.markdown(badge(f"✓ ruled out by {lead['actor']}: {lead['lead']}", C["good"]),
+                        unsafe_allow_html=True)
         if n.get("escalation_brief"):
             with st.container(border=True):
                 st.markdown("**Level 4 : expert escalation brief** (ready to send)")

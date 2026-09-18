@@ -25,6 +25,23 @@ def load_corpus():
                     docs.append({"file": fname, "kind": "document", "text": f.read()})
     # read through feedback so the ledger location stays in one place (and so
     # RATIONALE_STATE isolation applies to retrieval too); tolerant of torn lines
+    # Human answers to the engine's own questions. Unlike engine precedent
+    # these are admissible for the SAME period -- the answer is about this very
+    # investigation -- and they carry human provenance, which the narrative
+    # prompt and the UI can show. Weighted above documents: a domain expert
+    # stating a fact outranks a keyword hit in a ticket.
+    for a in _fb.read_ledger(include_verdicts=True):
+        if a.get("type") != "answer":
+            continue
+        docs.append({
+            "file": f"human_answer:{a['id']}", "kind": "human_answer",
+            "meta": {"kpi": a.get("kpi"), "period": a.get("period"),
+                     "actor": a.get("actor"), "confirms": a.get("confirms")},
+            "text": ("HUMAN ANSWER from " + str(a.get("actor")) + " on "
+                     + str(a.get("timestamp", ""))[:10] + chr(10)
+                     + "Q: " + str(a.get("question", "")) + chr(10)
+                     + "A: " + str(a.get("answer", ""))),
+        })
     for e in _fb.read_ledger():
         docs.append({
             "file": f"decision_ledger:{e['id']}", "kind": "ledger",
@@ -60,6 +77,11 @@ MAX_LEDGER_SNIPPETS = 2
 # A conclusion a human marked wrong is actively harmful as precedent, so it
 # is dropped rather than merely down-weighted.
 VOTE_WEIGHT = {"up": 1.5, "down": 0.0, None: 1.0}
+
+# A human's direct answer to the engine's question is the strongest evidence
+# the corpus can hold. It is scored on term overlap like everything else, then
+# boosted so it cannot be crowded out of the top-k by keyword-dense tickets.
+HUMAN_ANSWER_WEIGHT = 3.0
 
 
 @lru_cache(maxsize=256)
@@ -101,10 +123,19 @@ def search(kpi_cfg: dict, focus_regions: list, driver_findings: list, role_id: s
         is_ledger = doc["kind"] == "ledger"
         if is_ledger and not _admissible_ledger(doc.get("meta", {}), exclude_period):
             continue
+        if doc["kind"] == "human_answer":
+            # only answers about THIS KPI and period, or earlier periods
+            meta = doc.get("meta", {})
+            if meta.get("kpi") != exclude_kpi:
+                continue
+            if exclude_period and (meta.get("period") or "") > exclude_period:
+                continue
         low = doc["text"].lower()
         score = sum(w * len(re.findall(_term_re(t), low)) for t, w in terms)
         if is_ledger:
             score *= VOTE_WEIGHT.get(doc.get("meta", {}).get("vote"), 1.0)
+        elif doc["kind"] == "human_answer":
+            score = max(score, 1.0) * HUMAN_ANSWER_WEIGHT
         if score > 0:
             scored.append((score, is_ledger, doc))
     scored.sort(key=lambda x: (-x[0], x[2]["file"]))

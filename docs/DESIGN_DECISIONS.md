@@ -384,7 +384,7 @@ same code, with RBAC enforced there (403). Show `/docs`.
 
 ### D21. Tests, CI, and the benchmark as gates. [R3]
 
-`smoke_test.py` printed everything and asserted nothing; it is gone. 171 tests
+`smoke_test.py` printed everything and asserted nothing; it is gone. 179 tests
 now, plus `eval.py --check` (accuracy) and `ops/bench.py --check` (latency
 budget and correctness under concurrency) in CI. Measured concurrency: ~8–9
 req/s on one process, p50 243 ms at N = 1 rising to 1.7 s at N = 16, **zero
@@ -403,6 +403,8 @@ and past that point you add replicas because the service is stateless.
 6. **The MCP transport has been exercised against a real MCP server but not a
    real Slack workspace.** Needs credentials.
 7. **Contract authoring is a human workshop** and we have not run one.
+8. **The answered-state narrative is the deterministic template**, not model
+   prose — no fixture has been recorded for it yet (one live call to add).
 
 ---
 
@@ -466,6 +468,94 @@ its own lane: mutating the demo tables mid-demo would move the numbers just
 shown.
 
 ---
+
+### D26. Is this an agent? Yes — a governed one, and the constraints are the point. [R3]
+
+**Why this needs a decision.** The evaluators' guidance opens its third theme
+with *"building agents in an enterprise is hard"*. They will ask. The answer
+has to be precise, because a vague yes invites "then why isn't it more
+autonomous?" and a vague no throws away the framing they are using.
+
+**The taxonomy.** Practitioners distinguish a *workflow* — predefined code
+paths with model calls at fixed points — from an *agent*, where the model
+dynamically directs its own process and tool use. Rationale.AI is a workflow
+with gated model steps that nonetheless has the classic agent properties in a
+deliberately constrained form:
+
+| Property | Rationale.AI | Deliberate? |
+|---|---|---|
+| Perceives | Scans every KPI each period; daily-grain live detector | Yes |
+| Reasons | The four-level pyramid | Yes — along **fixed** paths |
+| Uses tools | SQL, statistics, ML, retrieval, the model, MCP transports | Yes — **code** picks the tool, never the model |
+| Decides | Whether to conclude, whether to abstain, whom to route to | Bounded: routing from the contract; dispatch needs a human |
+| Plans dynamically | **No.** Stages are fixed; early exit is a rule | Deliberate |
+| Learns | Verdicts change future ranking and retrieval (D17) | Yes |
+| Acts | Governed dispatch over MCP (D23–24) | Only after human approval |
+
+**The decision.** Do not add model-driven planning, model-chosen tools, or
+multi-agent orchestration. Each puts a decision inside the model — the one
+thing D1 forbids — and each adds the unreliability the evaluators are warning
+about. Every place autonomy was withheld is a place enterprise agents fail:
+the fixed paths, the abstention, the human approval and the contract-governed
+routing are not a lack of agency, they are the engineering answer to "safe,
+reliable, works every day".
+
+**The one agentic addition that fits.** When the engine abstains it asks a
+human a specific question. Closing that loop — the human answers, the answer
+becomes evidence with human provenance, the engine re-investigates — is a real
+perceive–reason–act cycle with the human as a sensor, and it completes the
+abstain path instead of leaving it a dead end. See D27.
+
+**Judge asks:** *"Is this an agent, or just a pipeline with an LLM in it?"*
+**Answer:** It perceives, reasons, decides, acts and learns — so yes. What it
+does not do is let the model plan or pick tools, and we can show the exact
+line: the model writes sentences; the contract and the code decide. Then the
+follow-up they want: *"we know what an agent is, and we chose where to draw
+the autonomy line — here is why each line is where it is."*
+
+### D27. The abstain loop: the engine asks, a human answers, the engine re-runs. [R3] **[team call]**
+
+**Problem.** When the engine abstained it asked a human a specific question —
+*"Did any tracking or checkout change roll out in July?"* — and the question
+went nowhere. The abstain path was a dead end dressed as a handoff.
+
+**Decision.** A human answers in the app. The answer is stored as an event on
+the investigation (like a verdict, so it is auditable: who, when, what) and
+surfaced to retrieval as a document with **human provenance**, admissible for
+the *same* period — unlike engine precedent, which must be strictly past. On
+re-run, a confirming answer becomes a hypothesis with `source: human`; a
+ruling-out answer is recorded as an eliminated lead with the actor's name.
+
+**Why the hallucination guard does not apply.** The guard exists to stop the
+*model* inventing causes when the contract already declares drivers. A domain
+expert stating a cause is the opposite case: it is exactly the input the
+contract cannot encode, and exactly what the evaluators asked us to seek. The
+model is still blocked; a test asserts it.
+
+**Evidence.** marketing_conversion: abstain at 0.438 → after a confirming
+answer, **tentative at 0.638** with the human's statement ranked first and the
+answer itself retrieved as `E1`. After a ruling-out answer: still abstain at
+0.438, with *"ruled out by head_of_growth"* on screen. No actions are
+produced either way, because no contract lever fixes a tracking tag — the
+engine does not invent one.
+
+**Why TENTATIVE and not ACTIONS.** Testimony is not measurement. A human-stated
+cause scores 0.8 on the statistical component (above a model-proposed lead at
+0.4, below a measured driver that can saturate at 1.0), and the score is
+still smoothed and discounted as in D12. "A person told us why, and we have
+not yet measured the effect" is precisely what tentative means.
+
+**What it is, in agent terms.** A perceive–reason–act cycle with the human as
+a sensor. The engine decided to ask; the human supplied a fact; the engine
+recomputed deterministically. That is the only form of autonomy we added,
+and it is the form that keeps every decision out of the model.
+
+**Judge asks:** *"So a human can just tell it the answer?"*
+**Answer:** Yes — and that is recorded, attributed, and treated as testimony
+rather than proof. The verdict moves from "we don't know" to "likely, per
+the head of growth, unmeasured", not to "established". Compare that to a
+dashboard, where the same conversation happens in a Slack thread and is gone
+by next quarter.
 
 ## Part V — The honest opening
 

@@ -163,7 +163,14 @@ def _rank_hypotheses(hypotheses, driver_findings, precedent=None):
     z_by_driver = {d["driver_id"]: abs(d["z"] or 0) for d in driver_findings}
     unexplained = {d["driver_id"] for d in driver_findings if d.get("unexplained")}
     for h in hypotheses:
-        stat = min(z_by_driver.get(h.get("driver_id"), 0) / 4.0, 1.0) if h["source"] == "driver" else 0.4
+        if h["source"] == "driver":
+            stat = min(z_by_driver.get(h.get("driver_id"), 0) / 4.0, 1.0)
+        elif h["source"] == "human":
+            # a domain expert stating the cause outranks a model-proposed lead,
+            # but it is testimony, not measurement, so it does not saturate
+            stat = 0.8
+        else:
+            stat = 0.4
         h["strength"] = round(0.5 * stat + 0.3 * min(len(h["snippets"]) / 3.0, 1.0)
                               + 0.2 * (1.0 if h["events"] else 0.0), 2)
         # A driver that moved but that nothing upstream explains is a lead, not
@@ -421,6 +428,32 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
                 nh_obj["snippets"].append(m["snippet_id"])
                 if m.get("key_fact"):
                     nh_obj["key_facts"].append(f"[{m['snippet_id']}] {m['key_fact']}")
+    # ---- the abstain loop closes here ----
+    # When the engine abstained earlier it asked a human a specific question.
+    # If a human has since answered, that answer is evidence with HUMAN
+    # provenance. A confirmed cause becomes a hypothesis with source="human";
+    # the hallucination guard above does not apply to it, because the guard
+    # exists to stop the MODEL inventing causes -- a domain expert stating one
+    # is exactly the input the contract cannot encode. A ruled-out cause is
+    # recorded so the narrative can say it was checked, by whom.
+    human_answers = fb.answers_for(kpi_id, period)
+    answer_snips = [s["id"] for s in ret["snippets"] if s.get("kind") == "human_answer"]
+    eliminated_leads = []
+    for a in human_answers:
+        if a.get("confirms") is True:
+            hypotheses.append({
+                "id": f"H{len(hypotheses)+1}", "source": "human",
+                "label": str(a.get("answer", "")).strip()[:160],
+                "actor": a.get("actor"), "keywords": [],
+                "snippets": list(answer_snips), "events": [],
+                "key_facts": [f"[{sid}] {a.get('answer', '')[:120]}" for sid in answer_snips],
+            })
+        elif a.get("confirms") is False:
+            eliminated_leads.append({"lead": str(a.get("answer", "")).strip()[:160],
+                                     "actor": a.get("actor")})
+    result["eliminated_leads"] = eliminated_leads
+    result["human_answers"] = len(human_answers)
+
     conf2 = confidence.score(an["z"], driver_findings, hypotheses)
     corroborated = sum(1 for h in hypotheses if h["snippets"])
     levels.append({
@@ -501,6 +534,10 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     })
 
     # ---------------- narrative (LLM) + LEVEL 4 when abstaining ----------------
+    # A human answer changes the facts, so it must not replay the fixture
+    # recorded for the unanswered investigation (which may be abstain prose).
+    # Distinct key: falls back to the deterministic template offline.
+    _ans = "_answered" if human_answers else ""
     ctx = {
         "kpi_name": cfg["name"], "unit": cfg["unit"], "period": period,
         # prose form: this string is both the LLM's grounding sentence (the
@@ -520,7 +557,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         "top_contributions": {dim: {"values_unit": cfg.get("dim_unit", cfg["unit"]),
                                     "rows": t.head(4).to_dict("records")}
                               for dim, t in contrib["tables"].items()},
-        "hypotheses_ranked": [{k: h.get(k) for k in ("rank", "strength", "id", "source", "unexplained",
+        "hypotheses_ranked": [{k: h.get(k) for k in ("rank", "strength", "id", "source", "unexplained", "actor",
                                                      "label", "snippets", "events", "key_facts")}
                               for h in hypotheses],
         "contradicting_drivers": [
@@ -541,7 +578,7 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     style = roles[role_id].get("narrative_style", "")
     # max_tokens generous (adaptive thinking counts against the cap); low effort
     # keeps live-demo latency down : the analysis is already done upstream
-    narrative = llm.json_call(f"narrative_{kpi_id}_{persona}{fsuf}", prompts.NARRATIVE_SYSTEM,
+    narrative = llm.json_call(f"narrative_{kpi_id}_{persona}{fsuf}{_ans}", prompts.NARRATIVE_SYSTEM,
                               prompts.build_narrative_prompt(ctx_masked, persona, style),
                               model=SONNET, max_tokens=8000, effort="low")
     if narrative is None:

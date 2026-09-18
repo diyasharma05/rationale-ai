@@ -89,6 +89,34 @@ def log_feedback(inv_id: str, vote: str, comment: str = "", kpi: str = "",
                      "vote": vote, "comment": comment})
 
 
+def log_answer(inv_id: str, kpi: str, period: str, question: str, answer: str,
+               actor: str, confirms=None) -> str:
+    """A human answers the question the engine asked when it abstained.
+
+    This is the input the abstain path was missing: the engine stopped, asked,
+    and the answer went nowhere. Stored as an event on the investigation, like a
+    verdict, so it is auditable -- and surfaced to retrieval as a document with
+    HUMAN provenance, so a re-run can use it as evidence.
+
+    `confirms` is True when the human confirms the suspected cause, False when
+    they rule it out, None for information that does neither.
+    """
+    ts = datetime.now().isoformat(timespec="seconds")
+    rec = {"type": "answer", "id": f"{inv_id}#answer-{ts.replace(':', '')}",
+           "target": inv_id, "timestamp": ts, "actor": actor, "kpi": kpi,
+           "period": period, "question": question, "answer": answer,
+           "confirms": confirms}
+    _append(LEDGER, rec)
+    return rec["id"]
+
+
+def answers_for(kpi: str, period: str) -> list:
+    """Human answers recorded against this KPI and period, oldest first."""
+    return [e for e in read_ledger(include_verdicts=True)
+            if e.get("type") == "answer" and e.get("kpi") == kpi
+            and e.get("period") == period]
+
+
 def read_ledger(include_verdicts: bool = False):
     """Investigations, with any human verdict folded in.
 
@@ -115,6 +143,9 @@ def read_ledger(include_verdicts: bool = False):
             if rec.get("type") == "verdict":
                 verdicts[rec.get("target")] = rec      # last vote wins
                 if include_verdicts:
+                    entries.append(rec)
+            elif rec.get("type") == "answer":
+                if include_verdicts:                     # answers are events too
                     entries.append(rec)
             else:
                 entries.append(rec)

@@ -94,6 +94,18 @@ Investigate **Marketing Conversion Rate** (flagged, −16%).
 - Confidence 0.44 → **ABSTAINS**, asks a clarifying question about tracking,
   and produces a **Level-4 escalation brief**.
   > "It would rather say 'I don't know, ask a human' than invent a story."
+- **Then close the loop.** The question is on screen with an answer box. Pick
+  *Yes — it confirms it*, type *"a checkout tracking tag change shipped on 3
+  July"*, record. It re-runs: **ABSTAIN → TENTATIVE**, the human's statement
+  ranked first, tagged with the role that said it, retrieved as evidence E1.
+  No actions appear — there is no contract lever for fixing a tag, and the
+  engine does not invent one.
+  > "The engine decided to ask. A person supplied a fact. It recomputed. That
+  > is the only autonomy we added, and notice what it did NOT do: it did not
+  > jump to ESTABLISHED. Testimony is not measurement."
+- If someone asks "is this agentic?": it perceives, reasons, decides, acts and
+  learns — yes. What it never does is let the model plan, pick a tool, or
+  choose a recipient. Point at this exact moment as where the autonomy line is.
 
 ## 4. Sparse history, personas, security (1.5 min)
 
