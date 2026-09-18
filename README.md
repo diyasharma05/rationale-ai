@@ -13,7 +13,55 @@ then lets a language model put the findings into words.
 
 > **The core rule: the LLM never computes a number.** A typical investigation runs
 > ~18 SQL queries, ~10 statistical tests, 5 ML models and 6 document retrievals —
-> and exactly **2 LLM calls**, both of which only write sentences.
+> and at most **2 LLM calls**, both of which only write sentences. (Investigations
+> that stop at the signal or sparse gate make none at all — the measured mean
+> across the evaluation set is 0.28.)
+
+---
+
+## Round 3 — what changed, and why
+
+Round 2 placed nationally. Round 3 was spent making every claim on screen
+survive a hostile question, and making the deployment story something you can
+run rather than something on a slide.
+
+**Statistical honesty.** Testing seven KPIs a month at a 2-sigma bar produces a
+false alarm roughly one month in four, purely from testing seven things. The
+engine now applies Benjamini-Hochberg across the whole portfolio
+(`engine/screening.py`). Detection precision went from **83% to 100%** with
+recall unchanged at 100% — the rigorous method scored better than the loose one.
+Small-sample tests use a t-distribution against the prediction standard error,
+because at n≈11 reading |z|≥2 as p=0.046 overstates significance by roughly 4x.
+
+**Confidence that cannot claim certainty.** The old score reached exactly
+`1.000`. Ratios are now Laplace-smoothed, a KPI with no declared drivers is
+scored as *unassessable* rather than given half marks, and the result is
+discounted by how much of the evidence could actually be checked. Nothing
+exceeds 0.84 anywhere across three roles and six months. The headline revenue
+case now lands at **TENTATIVE**, not ACTIONS — its own signal is marginal
+(p≈0.07) and the conviction comes from its drivers.
+
+**Co-movement, not causation.** A driver that moved is now described as having
+moved *with* the KPI, as the contract predicts. A driver that moved but that
+nothing upstream explains is flagged `unexplained` and counts for half — which
+is how the planted marketing tracking bug, the largest mover of the four, stops
+corroborating the revenue drop and drops to last place.
+
+**The learning loop is real.** An upvote and a downvote used to score
+identically. A correction now demotes the explanation it rejects, and a
+conclusion a human marked wrong is dropped from the evidence pool.
+
+**It deploys.** `docker compose up` brings up the app, the same engine behind a
+FastAPI service, Prometheus and Grafana. RBAC is enforced at the API boundary,
+not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on
+one process with zero wrong answers under contention, which is the honest
+"add replicas past here" answer.
+
+**It is tested.** 138 tests where there were effectively none:
+`smoke_test.py` printed everything and asserted nothing. The accuracy harness is
+mutation-tested — seed a wrong expected driver and root-cause accuracy drops
+4/4 → 3/4 — and 15 render snapshots gated a refactor that took `app.py` from
+1654 lines to 192.
 
 ---
 
@@ -240,8 +288,8 @@ llm/
 data/generate_data.py        seeded generator + planted scenarios
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
-smoke_test.py                engine scenario verification
-ui_test.py                   11 headless UI checks
+tests/                       138 tests: unit, RBAC, integration, UI snapshots
+ops/bench.py                 latency + concurrency benchmark
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)
 DEMO_SCRIPT.md               judge walkthrough
 ```
@@ -310,14 +358,14 @@ stack (or `prometheus_client`) is absent. Disable the endpoint with
 
 ## Deploy it (free, ~10 minutes)
 
-The app is deploy-ready: it generates its dataset on first boot, runs offline with no
+The app is deploy-ready: the dataset is committed (generation is only a fallback), it runs offline with no
 API key, and degrades gracefully when the optional observability stack is absent.
 
 **Streamlit Community Cloud**
 
 1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub.
 2. **New app** → repo `diyasharma05/rationale-ai`, branch `main`, file `app.py`.
-3. Deploy. First boot takes ~1 minute while the synthetic dataset is generated.
+3. Deploy. The dataset is committed, so there is no build step.
 
 No secrets are required — visitors get the offline demo, and anyone who wants live
 Claude narratives can paste their own key in the sidebar (held in memory, never stored).
@@ -335,8 +383,8 @@ streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 ## Verify the install
 
 ```bash
-python smoke_test.py   # engine: every planted scenario produces its expected outcome
-python ui_test.py      # 11 headless UI checks (mock mode, no key needed)
+python -m pytest       # 138 tests: engine invariants, RBAC, the five planted scenarios, UI snapshots
+python eval.py --check # accuracy harness against planted ground truth (CI gate)
 ```
 
 ## Troubleshooting

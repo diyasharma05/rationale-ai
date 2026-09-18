@@ -39,7 +39,7 @@ quantifies its own confidence, recommends actions tied to owners and decision ri
 SQL, statistics and machine learning; the language model reads documents and writes
 sentences over precomputed facts. A typical investigation performs **~18 SQL queries,
 ~10 statistical tests, 5 ML model evaluations, 6 document retrievals — and exactly
-2 LLM calls.** The per-run mix is displayed on every result.
+at most 2 LLM calls** (none when the engine short-circuits at a gate). The per-run mix is displayed on every result.
 
 ## 2. Architecture
 
@@ -70,7 +70,7 @@ sentences over precomputed facts. A typical investigation performs **~18 SQL que
    deterministic de-slop sanitizer, offline fixtures + template fallback
         ▼
  STREAMLIT UI : Dashboard · Live Feed · Data · Investigation · Ledger · Under the Hood
-   + /metrics on :9108 → Prometheus → Grafana (embedded back into the app)
+   + /metrics on :9108 → Prometheus → Grafana (its own service; `docker compose up`)
 ```
 
 Key property: every box above the narrative layer is deterministic and auditable. The two
@@ -163,7 +163,7 @@ delta and share-of-delta. July result: **North-West = 86% of the revenue movemen
 Focus regions (share ≥ 35%) steer retrieval and the IsolationForest narrative.
 
 ### `engine/drivers.py`
-For each declared driver: same-period z (threshold 1.5) classified as **consistent**
+For each declared driver: same-period z (threshold 1.5) classified as **co_moves**
 (moved the direction that would explain the KPI), **contradicts** (moved the wrong way —
 actively reduces confidence), or **quiet**, plus the co-movement r.
 
@@ -173,7 +173,7 @@ score = 0.35·signal + 0.35·coverage + 0.30·evidence
 signal   = min(|z|/3, 1)                       # |z| ≥ 3 = fully established
 coverage = consistent/declared − 0.25·contradicting   (0.5 neutral if no drivers)
 evidence = corroborated hypotheses / all hypotheses
-sparse history caps the score at 0.40
+sparse history reports a fixed 0.25 and makes no causal claim
 ```
 Gates: **evidence ≥ 0.60** to state a cause, **action ≥ 0.75** to recommend actions.
 The arithmetic is fixed Python — never model output.
@@ -181,7 +181,7 @@ The arithmetic is fixed Python — never model output.
 ### `engine/retrieve.py`
 Weighted keyword TF ranking over the 10 documents **plus the decision ledger** (region
 terms ×2). Same-period ledger entries are excluded (recall = *past* precedent only; this
-prevents echo chambers where one investigation's conclusion feeds a sibling's evidence).
+precedent must be strictly in the PAST, and self-authored entries are capped at 2 of 6 slots).
 
 ### Hypothesis ranking
 strength = 0.5·min(|z|/4,1) + 0.3·min(docs/3,1) + 0.2·(external event) — computed, and
@@ -230,7 +230,7 @@ flag) — added after a live session with a stale prompt overwrote curated fixtu
 fields ≤12 words. **The sanitizer enforces this in code** regardless of model behaviour:
 drops any sentence containing banned tokens (`z=`, `share_of_delta`, `evidence_gate`,
 `correlat`…), caps lengths, collapses citation chains, strips ids from action fields.
-Slop is structurally impossible, not just discouraged.
+Slop is bounded structurally: the sanitizer caps length and strips engine vocabulary. It does NOT verify numbers — that guarantee comes from the LLM never producing one.
 
 ## 8. Security model
 
@@ -291,7 +291,7 @@ auto-refreshing fragment (~1s ticks).
   breaches in North-West ~June 28–30 (z −3.9, deepening to −5.6)** → **complaints breach
   ~July 12 (z +2.4)** — cause first, symptom after. Toast + banner on each breach, and
   a one-click **"Investigate this now"** handoff into the pyramid.
-- Second tab embeds the live Grafana panels (§11).
+- Grafana runs as its own service in `compose.yml`; it is not embedded in the app.
 
 ## 11. Observability : Prometheus + Grafana
 
@@ -302,7 +302,7 @@ gate outcomes, detector votes, deterministic ops by kind (sql/stats/ml/retrieval
 calls/tokens/cost/latency by model, KPIs scanned/flagged. Everything no-ops if
 `prometheus_client` is absent — the app never depends on it.
 
-`ops/docker-compose.yml`: Prometheus (5s scrape) + Grafana (anonymous, embedding enabled,
+`compose.yml`: app + API + Prometheus (5s scrape) + Grafana (anonymous,
 pre-provisioned datasource and dashboard). The **"Engine Operations"** dashboard: outcome
 mix, p50/p95 latency, spend, detector votes, confidence distribution, and the headline
 panel — **deterministic work vs LLM calls, the core design claim measured live**.
@@ -337,12 +337,12 @@ needs a client's labelled history.
 
 ## 13. Testing
 
-- `ui_test.py` — **11 headless groups** (Streamlit AppTest, mock mode): dashboard, golden
+- `tests/ui/` — headless AppTest + 15 render snapshots (page x role): dashboard, golden
   path (actions + ranking + decision rights + what-could-change), ask-box intent, a
   **crash-regression sweep over every investigable KPI** (added after a driverless-KPI
   crash escaped the suite), abstain, sparse, CEO masking, Sales-Head domain/row security,
   Data explorer, period-picker recompute (May = clean month), Live Feed play/reset.
-- `smoke_test.py` — engine end-to-end on all planted scenarios.
+- `tests/integration/` — the five planted scenarios, as assertions (smoke_test.py is gone: it asserted nothing).
 - `eval.py` — the accuracy harness (§12).
 - **Adversarial multi-agent reviews** during development: light-mode audit (20 agents →
   10 confirmed defects, 5 rejected as nitpicks after recomputation), statistics/ML
@@ -428,7 +428,7 @@ data/           seeded dataset (committed) + generate_data.py + unstructured/ + 
 ops/            docker-compose : Prometheus + Grafana (pre-provisioned dashboard)
 metrics.py      Prometheus instrumentation (optional)   telemetry.py  per-call latency/tokens/cost
 feedback.py     decision ledger + corrections           eval.py       accuracy harness
-smoke_test.py · ui_test.py                              PROJECT_REPORT.md · DEMO_SCRIPT.md
+tests/ · ops/bench.py                                   PROJECT_REPORT.md · DEMO_SCRIPT.md
 ```
 
 ## 18. Known limitations and roadmap

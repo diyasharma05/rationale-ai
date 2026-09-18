@@ -35,7 +35,7 @@ with a confidence gate at every step. **Round 2 asked for a working prototype. T
 
 Every number is computed upstream and passed to the model **verbatim**. A typical
 investigation: **~18 SQL queries · ~10 statistical tests · 5 ML models · 6 documents
-retrieved · exactly 2 LLM calls** — the mix is displayed on every result ("What built this
+retrieved · at most 2 LLM calls** — the mix is displayed on every result ("What built this
 answer").
 
 ---
@@ -139,7 +139,7 @@ role-based security, noise rejection) is a **planted, reproducible** demo path.
 - **Hallucination guard**: an LLM-proposed hypothesis cannot rescue confidence when the
   contract's declared drivers stayed quiet — it is displayed as an "unvalidated lead" instead
   of evidence. (Demonstrated live on the marketing scenario.)
-- **No echo chambers**: same-period ledger entries are excluded from retrieval; "Recall"
+- **No echo chambers**: precedent must be strictly in the past and self-authored entries are capped; "Recall"
   means past precedent only.
 - **Deterministic de-slop sanitizer**: whatever the model returns, the UI shows ≤4 short
   sentences; sentences containing engine/statistics vocabulary are dropped in code.
@@ -184,7 +184,7 @@ depth (the CEO never sees a z-score), and different data scopes — same engine.
 
 | Metric | Value |
 |---|---|
-| LLM calls per investigation | **2** (1 Haiku mapping + 1 Sonnet narrative) |
+| LLM calls per investigation | **0-2** (1 Haiku mapping + 1 Sonnet narrative; 0 when the engine short-circuits at the signal or sparse gate) |
 | Cost per insight | **≈ ₹1–3** ($0.01–0.03) |
 | Models & pricing | Haiku 4.5 $1/$5 · Sonnet 5 $2/$10 per MTok, effort=low |
 | Deterministic analytics | milliseconds (DuckDB pushdown over 85k rows) |
@@ -200,7 +200,7 @@ and cumulatively in Under-the-Hood.
 
 ## 10. Engineering quality (how we verified it)
 
-- **Test suites**: 9-group headless UI suite (Streamlit AppTest) covering the golden path,
+- **Test suites**: 138 tests (unit, RBAC, integration, 15 UI snapshots) covering the golden path,
   abstention, sparse, intent routing, RBAC/masking, and a **crash-regression sweep over every
   investigable KPI**; plus an end-to-end engine smoke test of all planted scenarios.
 - **Adversarial review workflows** (multi-agent):
@@ -254,7 +254,7 @@ causal-graph inference · multi-tenant deployment on client cloud.
 6. **Trust machinery** — hallucination guard, abstention, noise filter (§6)
 7. **Security & personas** (§7)
 8. **UI** — screenshots: dashboard, verdict row, waterfall, action cards (§8)
-9. **Economics** — ₹1–3 per insight, 2 LLM calls, offline-safe (§9)
+9. **Economics** — ₹1–3 per insight, at most 2 LLM calls, offline-safe (§9)
 10. **Rigor** — tests, adversarial audits, 2,000-simulation verification (§10)
 11. **Requirement coverage** — the checklist (§11)
 12. **Roadmap + ask** (§12)
