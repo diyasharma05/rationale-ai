@@ -219,6 +219,12 @@ Under the Hood → **"Does it actually get the right answer?"**
 - **"Does anything happen without a click?"** → `python -m ops.watch` in a
   terminal: it scans, drafts into the Outbox for every material movement, and
   stops. Nothing sends until a person approves.
+- **"Does it run on Snowflake?"** → Yes, verified on a trial: the same contract
+  SQL, 18 of 18 series identical to the laptop engine, golden path 0.715. Say
+  what the parity check caught (a loader default, a rounding difference in a
+  ratio) — that is the enterprise-builder point. If the venue network allows,
+  `RATIONALE_DB` set to the Snowflake URL in `.env` makes the Lineage page say
+  so; the first click takes ~20 s over the wire, so warm it before the room.
 - **"How does this deploy?"** → `docker compose up`. Same engine behind a
   FastAPI service (`/docs`), because `investigate(kpi, period, role)` is
   stateless given its inputs. RBAC is enforced at the API, not just the UI —

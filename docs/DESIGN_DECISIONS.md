@@ -810,6 +810,23 @@ one place each; and `ops/warehouse.py` loads the four sources and verifies
 every KPI series against DuckDB, run end to end against PostgreSQL in the
 suite. The vendor run is the one step that needs an account.
 
+**Snowflake, run for real (2026-09-19).** The team opened a trial. The load
+took seconds; the first parity check found two things a design review could
+not: the connector's bulk loader writes dates as integers unless asked to keep
+logical types, and Snowflake's fixed-point division rounds a ratio at the
+sixth decimal, so the contract now states that ratio in double arithmetic (a
+change every engine accepts). After both, all 18 KPI series are identical to
+DuckDB to 1e-9, the golden path is TENTATIVE 0.715 with the same rank-1 driver
+and the same causal estimate, and the tracking bug abstains at 0.438. First
+investigation of a session 22 s over the wire, second 0.2 s from the caches.
+Databricks remains documented, not run.
+
+**Judge asks:** *"So it runs on Snowflake?"*
+**Answer:** Yes, as of yesterday, and the parity check is what made it true:
+it caught a loader default and a rounding difference that would have shown up
+as a mismatched complaint rate in a client's first week. The contract SQL did
+not change except to say what it already meant.
+
 **Judge asks:** *"Why not build this on Databricks / Fabric?"*
 **Answer:** Because the thing we are demonstrating, a model that never touches
 a number, is easier to guarantee and to show offline in an engine we control.

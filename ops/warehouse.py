@@ -101,8 +101,12 @@ def _load_snowflake(url: str, table: str, df: pd.DataFrame, schema: str | None) 
             cur.execute(f"USE WAREHOUSE {kw['warehouse']}")
         # unquoted identifiers: Snowflake upper-cases them, and the contract's
         # unquoted lower-case SQL resolves to the same names
+        # use_logical_type: without it, datetime columns land as NUMBER (epoch
+        # nanoseconds) and CAST(... AS DATE) cannot compile. With it they are
+        # TIMESTAMP_NTZ, which the contract casts to DATE as on every other engine.
         ok, _chunks, nrows, _ = write_pandas(conn, df, table.upper(), auto_create_table=True,
-                                             overwrite=True, quote_identifiers=False)
+                                             overwrite=True, quote_identifiers=False,
+                                             use_logical_type=True)
         assert ok
         return int(nrows)
     finally:
@@ -202,6 +206,32 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if not a.url:
         sys.exit("give --url or set RATIONALE_WAREHOUSE_URL")
+    # Validate the shape BEFORE any library sees it, and never echo the value: a
+    # malformed URL once surfaced in a parser's error message.
+    from sqlalchemy.engine import make_url
+    try:
+        parsed = make_url(a.url)
+        secret = parsed.password or ""
+    except Exception:
+        sys.exit("RATIONALE_WAREHOUSE_URL is malformed. Check: exactly one '@' between the password "
+                 "and the host; any '@' inside the password written as %40; no spaces. The value is "
+                 "not shown here on purpose.")
+
+    def _scrub(text: str) -> str:
+        text = str(text)
+        for s_ in {secret, secret.replace("@", "%40")} - {""}:
+            text = text.replace(s_, "***")
+        return text
+
+    try:
+        return _dispatch(a)
+    except SystemExit:
+        raise
+    except Exception as e:                       # print the failure without the credential
+        sys.exit(f"{type(e).__name__}: {_scrub(e)}")
+
+
+def _dispatch(a):
     if a.command == "smoke":
         r = smoke(a.url)
         extra = {k: v for k, v in r.items() if k not in ("dialect", "url", "select_1", "ms")}

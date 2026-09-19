@@ -87,10 +87,11 @@ seven pointers one by one.
 **It is custom where it reasons and hybrid where it lands.** Any SQLAlchemy warehouse
 URL works as a live source (`kind: sql`) or as the engine the contract SQL runs on
 (`RATIONALE_DB`), proven against PostgreSQL and SQLite; the vendor URLs for Snowflake,
-Databricks, Fabric and BigQuery are documented in `docs/PLATFORMS.md`. For Snowflake and
-Databricks the drivers are installed, the dialect differences are handled, and
-`python -m ops.warehouse smoke | load | verify` loads the sources and proves the contract
-SQL there against DuckDB; the vendor run itself waits on an account and is marked so.
+Databricks, Fabric and BigQuery are documented in `docs/PLATFORMS.md`. **Snowflake is
+verified**: on a trial account, `python -m ops.warehouse load` wrote the four tables in
+seconds and `verify` found all 18 KPI series identical to DuckDB, after two real findings
+(the loader's date types; fixed-point division in a ratio) were fixed. The golden path
+is TENTATIVE 0.715 there too. Databricks has the same tooling and no account yet.
 `python -m ops.export_bi` writes every output as CSV and Parquet for Tableau, Power BI,
 Looker or Qlik, and the API serves the same as JSON.
 

@@ -78,7 +78,7 @@ that you did not say them.
 | Your headline case doesn't conclude? | D13; slide 7 |
 | Where does causation come from? | D14 for the drivers (co-movement); D30 for the one causal estimate, with its identification conditions |
 | Is there any forecasting? | D31; the trend band under every chart, with R² stated |
-| Why not Databricks / Snowflake / Fabric? Can it work with our Tableau? | D35; `docs/PLATFORMS.md`; `python -m ops.export_bi` and the README it writes |
+| Why not Databricks / Snowflake / Fabric? Can it work with our Tableau? | D35; `docs/PLATFORMS.md`: Snowflake verified on a trial (18/18 series identical, two real findings fixed), Databricks tooled but not run; `python -m ops.export_bi` for the BI hand-off |
 | Is the contract an ontology? | D32; the graph on the Lineage page; `GET /graph` |
 | Does anything happen without a click? | D33; `python -m ops.watch` drafts into the Outbox and never sends |
 | Who validated this with users? | Part V of the design doc; slide 12 — say it first |

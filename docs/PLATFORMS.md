@@ -51,7 +51,7 @@ Everything short of the network hop is built and verified on this machine:
 | Contract SQL dialect | Accepted as written; unquoted result names come back upper-case, so the engine lower-cases them | Accepted with one spelling swapped: `::DOUBLE PRECISION` becomes `::DOUBLE`, and nothing else | Rewrite rule tested against every KPI's SQL |
 | Loader | `write_pandas` (PUT + COPY INTO, seconds for 85k rows), unquoted upper-case identifiers so the contract's unquoted SQL resolves | `pandas.to_sql` in chunks, a one-off of a few minutes | The generic loader is run end to end against PostgreSQL in the test suite |
 | Verifier | `python -m ops.warehouse verify --url …` compares every KPI series for every role with DuckDB to 1e-9 and restores the default engine | same | Run end to end against PostgreSQL in the test suite: 18 series, identical |
-| **The vendor run** | **pending an account** | **pending an account** | — |
+| **The vendor run** | **Verified 2026-09-19** on a trial account (AWS ap-southeast-3, Snowflake 10.33): 85k-row order table loaded in ~9 s; all 18 KPI series identical to DuckDB to 1e-9; golden path TENTATIVE 0.715 with the same rank-1 driver and the same causal estimate; the tracking bug abstains at 0.438 | **pending an account** | `python -m ops.warehouse smoke / load / verify` against the live account |
 
 The three commands, once a trial exists (Snowflake: thirty days, no card; Databricks: free edition):
 
@@ -64,8 +64,31 @@ python -m ops.warehouse verify     # every KPI series on the warehouse == DuckDB
 python -m ops.warehouse env        # the RATIONALE_OMS_DSN / RATIONALE_DB lines for the app
 ```
 
-Set the URL in the shell, never in a file that is committed. When `verify` prints
-IDENTICAL, this table's last row changes and the numbers go into D35.
+Set the URL in `.env` (gitignored) or the shell, never in a file that is committed.
+The tool validates the URL's shape before any library sees it and scrubs the
+credential from every message it prints.
+
+### What the Snowflake run taught us
+
+Two things, both now in the code, neither visible without the account:
+
+1. **Snowflake's bulk loader drops date types unless told otherwise.** The
+   connector's `write_pandas` writes datetime columns as NUMBER (epoch
+   nanoseconds) by default, and `CAST(order_date AS DATE)` then cannot compile.
+   `use_logical_type=True` keeps them as TIMESTAMP_NTZ, which the contract casts
+   to DATE exactly as on every other engine.
+2. **Snowflake divides fixed-point NUMBER values at a limited scale.** The
+   complaint-rate ratio came back as 10.817132 where DuckDB and PostgreSQL
+   compute 10.81713199824587: identical to four decimals, different at the
+   seventh significant digit, and enough to fail a parity check at 1e-9. The
+   contract now states the ratio is double arithmetic
+   (`COALESCE(c.n,0)::DOUBLE PRECISION`), which every engine honours; after that
+   change all 18 series are identical.
+
+Cold-start cost on Snowflake: the first investigation of a session ran about
+25 queries over the wire to Jakarta and took 22 s; the second took 0.2 s from
+the result caches. That is the same shape as PostgreSQL (D28), stretched by
+geography. The role-keyed caches, not the engine, decide the demo's latency.
 
 ## What "proven" means here
 
@@ -75,9 +98,10 @@ extract with the reason stated and the password redacted, and runs the contract
 SQL against PostgreSQL through the generic SQLAlchemy backend with the same
 series to a relative tolerance of 1e-9 as the in-process engine.
 `tests/integration/test_export_bi.py` checks the export against the live scan.
-None of this has been run against a vendor account. A thirty-day Snowflake
-trial or the Databricks free edition would make that claim in an afternoon; the
-mechanism would not change.
+Snowflake has been run for real on a trial account (see above). Databricks has
+not: its free edition would make that claim in an afternoon, and the two
+Snowflake findings suggest what to look for (loader type mapping; decimal
+arithmetic in ratios).
 
 ## The BI tools
 

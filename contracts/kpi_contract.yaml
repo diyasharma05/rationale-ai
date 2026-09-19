@@ -161,7 +161,9 @@ kpis:
         SELECT date_trunc('month', CAST(order_date AS DATE)) AS period, COUNT(*) AS n
         FROM sales_orders WHERE 1=1 {where}
         GROUP BY 1)
-      SELECT o.period, 1000.0 * COALESCE(c.n,0) / o.n AS value
+      -- the ratio is double arithmetic on every engine: Snowflake's NUMBER division
+      -- otherwise rounds at the sixth decimal (found by the Snowflake parity run)
+      SELECT o.period, 1000.0 * COALESCE(c.n,0)::DOUBLE PRECISION / o.n AS value
       FROM o LEFT JOIN c USING (period) ORDER BY 1
     dimensions: [region]
     dim_sql: >

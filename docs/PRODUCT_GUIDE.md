@@ -1330,9 +1330,14 @@ vendor URLs for Snowflake, Databricks SQL, Fabric and BigQuery are listed in
 place each (Snowflake returns upper-case result names; Databricks spells the
 cast `::DOUBLE`), and `python -m ops.warehouse smoke | load | verify` loads the
 sources and compares every KPI series with DuckDB. That tool is run end to end
-against PostgreSQL in the test suite; the vendor run waits on an account and is
-marked pending wherever the vendors are named. BigQuery is a supported source,
-not a supported engine.
+against PostgreSQL in the test suite, and **against Snowflake for real** on a
+trial account: 85k rows loaded in about 9 s, all 18 series identical to DuckDB
+after two findings were fixed (the bulk loader's date types; Snowflake's
+fixed-point division in the complaint-rate ratio, now stated as double
+arithmetic in the contract), the golden path TENTATIVE 0.715 with the same
+causal estimate, the first investigation 22 s over the wire and the second
+0.2 s from the caches. Databricks has the same tooling and no account yet.
+BigQuery is a supported source, not a supported engine.
 
 ### 25.3 Rehearsed answers
 
