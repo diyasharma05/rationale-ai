@@ -87,9 +87,12 @@ seven pointers one by one.
 **It is custom where it reasons and hybrid where it lands.** Any SQLAlchemy warehouse
 URL works as a live source (`kind: sql`) or as the engine the contract SQL runs on
 (`RATIONALE_DB`), proven against PostgreSQL and SQLite; the vendor URLs for Snowflake,
-Databricks, Fabric and BigQuery are documented in `docs/PLATFORMS.md` and honestly marked
-untested. `python -m ops.export_bi` writes every output as CSV and Parquet for Tableau,
-Power BI, Looker or Qlik, and the API serves the same as JSON.
+Databricks, Fabric and BigQuery are documented in `docs/PLATFORMS.md`. For Snowflake and
+Databricks the drivers are installed, the dialect differences are handled, and
+`python -m ops.warehouse smoke | load | verify` loads the sources and proves the contract
+SQL there against DuckDB; the vendor run itself waits on an account and is marked so.
+`python -m ops.export_bi` writes every output as CSV and Parquet for Tableau, Power BI,
+Looker or Qlik, and the API serves the same as JSON.
 
 **It runs on PostgreSQL too.** One variable, `RATIONALE_DB`, points the engine at a
 PostgreSQL database instead of the in-process DuckDB: the same contract SQL, the same
@@ -98,7 +101,7 @@ INSERT-only application role. A parity suite asserts every KPI series and all 36
 evaluation verdicts are identical on both engines. `python -m ops.pg_local init` runs
 PostgreSQL as a plain user process — no Docker, no service, no admin rights.
 
-**It is tested.** 234 tests where there were effectively none:
+**It is tested.** 241 tests where there were effectively none:
 `smoke_test.py` printed everything and asserted nothing. The accuracy harness is
 mutation-tested — seed a wrong expected driver and root-cause accuracy drops
 4/4 → 3/4 — and 15 render snapshots gated a refactor that took `app.py` from
@@ -352,11 +355,13 @@ engine/graph.py              the contract as a knowledge graph: build, downstrea
 engine/forecast.py           the OLS forecast band, in words, with R² stated
 ops/watch.py                 proactive watcher: scans, drafts into the Outbox, never sends
 ops/export_bi.py             BI hand-off: scan, series, verdicts, provenance, graph as CSV + Parquet
+ops/warehouse.py             load the sources into Snowflake / Databricks / any SQLAlchemy warehouse and verify parity
+requirements-warehouse.txt   optional vendor drivers (snowflake-sqlalchemy, databricks-sqlalchemy, pyodbc)
 docs/PLATFORMS.md            the platform seams: what is proven against what, and the vendor URLs
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
 store.py                     event streams: JSONL by default, PostgreSQL via RATIONALE_DB
-tests/                       234 tests: unit, RBAC, integration, UI snapshots, PostgreSQL parity
+tests/                       241 tests: unit, RBAC, integration, UI snapshots, PostgreSQL parity
 ops/bench.py                 latency + concurrency benchmark
 ops/pg_local.py              run the same contract on PostgreSQL without Docker
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)

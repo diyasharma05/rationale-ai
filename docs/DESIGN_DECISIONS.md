@@ -384,7 +384,7 @@ same code, with RBAC enforced there (403). Show `/docs`.
 
 ### D21. Tests, CI, and the benchmark as gates. [R3]
 
-`smoke_test.py` printed everything and asserted nothing; it is gone. 234 tests
+`smoke_test.py` printed everything and asserted nothing; it is gone. 241 tests
 now, plus `eval.py --check` (accuracy) and `ops/bench.py --check` (latency
 budget and correctness under concurrency) in CI. Measured concurrency: ~8–9
 req/s on one process, p50 243 ms at N = 1 rising to 1.7 s at N = 16, **zero
@@ -803,6 +803,12 @@ ledger on PostgreSQL, and a BI hand-off of every output as CSV and Parquet plus
 the API. The vendor URLs for Snowflake, Databricks SQL, Fabric and BigQuery are
 documented in `docs/PLATFORMS.md` and have not been run against a vendor
 account; that is one trial sign-up away, and we say so rather than imply it.
+The team then asked to integrate Snowflake and Databricks specifically. The
+drivers are installed and register; the URL shapes parse; Snowflake's
+upper-case result names and Databricks' `::DOUBLE` spelling are handled in
+one place each; and `ops/warehouse.py` loads the four sources and verifies
+every KPI series against DuckDB, run end to end against PostgreSQL in the
+suite. The vendor run is the one step that needs an account.
 
 **Judge asks:** *"Why not build this on Databricks / Fabric?"*
 **Answer:** Because the thing we are demonstrating, a model that never touches

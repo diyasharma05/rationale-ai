@@ -65,10 +65,13 @@ def test_env_location_unset_means_extract_not_error(monkeypatch):
 def test_backend_selection_by_url_shape():
     assert db._make_backend("").name == "duckdb"
     assert db._make_backend("postgresql://u@h/d").name == "postgresql"
-    for url in ("postgresql+psycopg://u@h/d", "snowflake://u:p@acct/db/schema",
-                "databricks://token:x@host?http_path=/sql/1.0", "mssql+pyodbc://u:p@dsn", "bigquery://project"):
+    for url in ("postgresql+psycopg://u@h/d", "snowflake://u:s3cretpw@acct/db/schema",
+                "databricks://token:s3cretpw@host?http_path=/sql/1.0", "mssql+pyodbc://u:s3cretpw@dsn"):
         b = db._make_backend(url)
-        assert b.name == "sql" and "***" in b.describe() or ":" not in url.split("://", 1)[1].split("@")[0]
+        assert b.name == "sql"
+        creds = url.split("://", 1)[1].split("@")[0]
+        if ":" in creds:
+            assert "***" in b.describe() and creds.split(":", 1)[1] not in b.describe()
 
 
 # ---------------------------------------------------------------- PostgreSQL through the generic path

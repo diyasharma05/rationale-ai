@@ -1,0 +1,12 @@
+# Vendor drivers for the warehouse seam (ops/warehouse.py, `kind: sql` sources,
+# RATIONALE_DB as a vendor URL). Optional: the engine imports them lazily and
+# runs without them. Install only what your deployment talks to.
+#
+#   python -m pip install -r requirements-warehouse.txt
+#
+snowflake-sqlalchemy>=1.6,<2        # snowflake://USER:PASS@ACCOUNT/DB/SCHEMA?warehouse=WH
+databricks-sqlalchemy>=2,<3         # databricks://token:TOKEN@HOST?http_path=...&catalog=...&schema=...
+# Microsoft Fabric / SQL Server endpoint: pyodbc + "ODBC Driver 18 for SQL Server"
+# pyodbc>=5,<6                      # mssql+pyodbc://USER:PASS@SERVER/DB?driver=ODBC+Driver+18+for+SQL+Server
+# BigQuery is supported as a source (SELECT *), not as the engine (no `::` cast):
+# sqlalchemy-bigquery>=1.11,<2      # bigquery://PROJECT/DATASET

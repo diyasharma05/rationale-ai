@@ -40,6 +40,33 @@ $env:RATIONALE_OMS_DSN = "<url>"     # fetch the order system live from that war
 $env:RATIONALE_DB      = "<url>"     # or run the whole contract there
 ```
 
+## Snowflake and Databricks: the integration, and its status
+
+Everything short of the network hop is built and verified on this machine:
+
+| Step | Snowflake | Databricks SQL | Verified how |
+|---|---|---|---|
+| Driver installed | `snowflake-sqlalchemy` 1.11 (connector 4.7) | `databricks-sqlalchemy` 2 (connector 4.5) | `requirements-warehouse.txt`; both import on Python 3.13 |
+| Dialect registers, URL parses | yes | yes | `tests/unit/test_vendor_dialects.py` builds an engine from each URL shape without connecting |
+| Contract SQL dialect | Accepted as written; unquoted result names come back upper-case, so the engine lower-cases them | Accepted with one spelling swapped: `::DOUBLE PRECISION` becomes `::DOUBLE`, and nothing else | Rewrite rule tested against every KPI's SQL |
+| Loader | `write_pandas` (PUT + COPY INTO, seconds for 85k rows), unquoted upper-case identifiers so the contract's unquoted SQL resolves | `pandas.to_sql` in chunks, a one-off of a few minutes | The generic loader is run end to end against PostgreSQL in the test suite |
+| Verifier | `python -m ops.warehouse verify --url …` compares every KPI series for every role with DuckDB to 1e-9 and restores the default engine | same | Run end to end against PostgreSQL in the test suite: 18 series, identical |
+| **The vendor run** | **pending an account** | **pending an account** | — |
+
+The three commands, once a trial exists (Snowflake: thirty days, no card; Databricks: free edition):
+
+```
+python -m pip install -r requirements-warehouse.txt
+$env:RATIONALE_WAREHOUSE_URL = "snowflake://USER:PASS@ACCOUNT/DB/SCHEMA?warehouse=WH"   # or the databricks:// URL
+python -m ops.warehouse smoke      # connect, SELECT 1, name the dialect
+python -m ops.warehouse load       # create and load the four tables from the declared sources
+python -m ops.warehouse verify     # every KPI series on the warehouse == DuckDB, or the mismatches
+python -m ops.warehouse env        # the RATIONALE_OMS_DSN / RATIONALE_DB lines for the app
+```
+
+Set the URL in the shell, never in a file that is committed. When `verify` prints
+IDENTICAL, this table's last row changes and the numbers go into D35.
+
 ## What "proven" means here
 
 `tests/unit/test_warehouse_kind.py` loads a source through the `sql` kind from

@@ -144,12 +144,42 @@ class _Postgres:
         return "PostgreSQL at " + redact(self.dsn)
 
 
+# The contract SQL is written once, in the dialect DuckDB and PostgreSQL share.
+# Where a warehouse spells one thing differently, the spelling is swapped here,
+# per dialect, and nowhere else. Snowflake accepts the SQL as written but
+# returns unquoted column names in UPPER CASE, so results are lower-cased to
+# match the contract's aliases. Databricks SQL accepts `::` casts but names the
+# type DOUBLE. BigQuery has no `::` cast and a different date_trunc, so it is a
+# supported SOURCE (a SELECT *) and not a supported engine.
+_DIALECT_REWRITES = {
+    "databricks": (("::DOUBLE PRECISION", "::DOUBLE"),),
+}
+_LOWERCASE_RESULTS = {"snowflake"}
+_UNSUPPORTED_ENGINES = {
+    "bigquery": "BigQuery has no `::` cast and reverses date_trunc's arguments; use it as a "
+                "`kind: sql` source, or add a dialect pass to _DIALECT_REWRITES",
+}
+
+
+def dialect_of(url: str) -> str:
+    return url.split("://", 1)[0].split("+", 1)[0].lower()
+
+
+def rewrite_for(dialect: str, sql: str) -> str:
+    for old, new in _DIALECT_REWRITES.get(dialect, ()):
+        sql = sql.replace(old, new)
+    return sql
+
+
 class _SQLAlchemy:
     """Any warehouse with a SQLAlchemy dialect. One engine (a pool) per process."""
     name = "sql"
 
     def __init__(self, url: str):
         self.url = url
+        self.dialect = dialect_of(url)
+        if self.dialect in _UNSUPPORTED_ENGINES:
+            raise ValueError(f"{self.dialect} is not supported as the engine: {_UNSUPPORTED_ENGINES[self.dialect]}")
         self._engine = None
         self._lock = threading.Lock()
 
@@ -164,6 +194,7 @@ class _SQLAlchemy:
     def query(self, sql: str, params=()) -> pd.DataFrame:
         import decimal
         import sqlalchemy
+        sql = rewrite_for(self.dialect, sql)
         bound = {}
         if params:                                   # '?' positional -> :p0, :p1 named
             parts = sql.split("?")
@@ -171,7 +202,10 @@ class _SQLAlchemy:
             bound = {f"p{i}": v for i, v in enumerate(params)}
         with self.conn().connect() as c:
             res = c.execute(sqlalchemy.text(sql), bound)
-            df = pd.DataFrame(res.fetchall(), columns=list(res.keys()))
+            cols = list(res.keys())
+            if self.dialect in _LOWERCASE_RESULTS:
+                cols = [str(k).lower() for k in cols]
+            df = pd.DataFrame(res.fetchall(), columns=cols)
         for col in df.columns:                       # parity with DuckDB's frames
             if df[col].dtype == object:
                 nonnull = df[col].dropna()
@@ -183,8 +217,7 @@ class _SQLAlchemy:
 
     def describe(self) -> str:
         from store import redact
-        dialect = self.url.split("://", 1)[0]
-        return f"{dialect} via SQLAlchemy at " + redact(self.url)
+        return f"{self.dialect} via SQLAlchemy at " + redact(self.url)
 
 
 _BACKEND = None
