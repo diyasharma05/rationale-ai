@@ -12,7 +12,7 @@ work between them.
 |---|---|---|---|
 | **Understand the problem before building** | Grounded, not validated | `docs/PROBLEM_STATEMENT.md`: four stakeholders, published evidence, explicit assumptions; `docs/REQUIREMENTS_MAP.md`: the brief's seven pointers mapped to code, tests and gaps | No real user has touched the system. We cannot fix that before the finale; we can be the team that says so first and has a pilot plan for it. |
 | **Let human imagination lead** | Thesis is ours; hardening must be owned | Round-2 architecture (deterministic-first, contract, abstention) is original. Round-3 decisions are documented with alternatives in `docs/DESIGN_DECISIONS.md` | Every Round-3 decision must be understood well enough to defend *or overrule*. Mock Q&A is the test. |
-| **Think like an enterprise builder** | Strongest area | 198 tests, CI gates, offline-safe, RBAC in SQL and at the API, audit trail, human-approved dispatch, measured concurrency, provenance page, pilot and Day-2 plan | Business case is a model, not a number, because there is no client. Say so. |
+| **Think like an enterprise builder** | Strongest area | 234 tests, CI gates, offline-safe, RBAC in SQL and at the API, audit trail, human-approved dispatch, measured concurrency, provenance page, pilot and Day-2 plan | Business case is a model, not a number, because there is no client. Say so. |
 
 ## 2. The order of work
 
@@ -42,7 +42,7 @@ order of the evaluators' three points.
 | 6 | **Why we trust the numbers** | 3 | Precision 100% / recall 100% across 36 cases and five control months; FDR-controlled; confidence cannot reach 1.0; the harness is mutation-tested. Show the gate-separation margins including the narrow one. Then the one causal estimate: the North-West shock is about 82% of July's revenue movement, with its interval and its assumption check, and "not identifiable" for the national tracking bug. |
 | 7 | **Why the flagship case is TENTATIVE** | 2, 3 | Because it should be. Revenue's own signal is marginal (p ≈ 0.07); the drivers carry it. An engine that called it ESTABLISHED at 0.71 is the one to distrust. |
 | 8 | **A governed agent** | 2, 3 | It perceives, reasons, decides, acts and learns — and here is exactly where the autonomy stops and why: RBAC in SQL and at the API; masking before the prompt; the model never plans, picks a tool or chooses a recipient; human approval before any dispatch; silence on no-signal. |
-| 9 | **Runs every day** | 3 | 198 tests, two CI gates, offline-safe, container, concurrency curve with zero wrong answers under load. Runs unchanged on PostgreSQL with identical verdicts; the ledger becomes one shared append-only table. |
+| 9 | **Runs every day** | 3 | 234 tests, two CI gates, offline-safe, container, concurrency curve with zero wrong answers under load. Runs unchanged on PostgreSQL with identical verdicts; the ledger becomes one shared append-only table. |
 | 10 | **From prototype to client** | 3 | The pilot in four phases, starting with the contract workshop — the human step. Three to five months to trusted, narrow dispatch. Day-2 operations table. |
 | 11 | **Value, as a model** | 3 | Time-to-diagnosis, days of earlier action × daily cost, alert fatigue avoided, ₹1–3 per investigation. Honest that the realised number needs a pilot. |
 | 12 | **What we have not solved, and how we built** | 1, 2 | No real users yet. No causal inference. No seasonality. And: architecture and thesis are ours; we used AI assistants for implementation and hardening; here is a decision we overruled. |
@@ -78,6 +78,7 @@ that you did not say them.
 | Your headline case doesn't conclude? | D13; slide 7 |
 | Where does causation come from? | D14 for the drivers (co-movement); D30 for the one causal estimate, with its identification conditions |
 | Is there any forecasting? | D31; the trend band under every chart, with R² stated |
+| Why not Databricks / Snowflake / Fabric? Can it work with our Tableau? | D35; `docs/PLATFORMS.md`; `python -m ops.export_bi` and the README it writes |
 | Is the contract an ontology? | D32; the graph on the Lineage page; `GET /graph` |
 | Does anything happen without a click? | D33; `python -m ops.watch` drafts into the Outbox and never sends |
 | Who validated this with users? | Part V of the design doc; slide 12 — say it first |

@@ -8,7 +8,7 @@ what, how it is secured, tested, deployed, and where its limits are. It is
 written to be read end to end by someone who has never seen the code, and to be
 checkable line by line by someone who has. Every constant, threshold and
 measurement quoted here is taken from the code and the evaluation output on the
-`round3-hardening` branch as of 2026-09-19 (223 tests passing; 12 of them run
+`round3-hardening` branch as of 2026-09-19 (234 tests passing; 14 of them run
 against a real PostgreSQL).
 
 Companion documents, each narrower than this one:
@@ -22,6 +22,7 @@ Companion documents, each narrower than this one:
 | `docs/PILOT_AND_OPERATIONS.md` | Pilot plan, value model, Day-2 operations |
 | `docs/FINALE_PLAN.md` | Deck outline, honest lines, Q&A map |
 | `docs/REQUIREMENTS_MAP.md` | The brief's seven pointers mapped to code, tests and gaps |
+| `docs/PLATFORMS.md` | The platform seams: what is proven against what, the vendor URLs, the BI hand-off |
 | `DEMO_SCRIPT.md` | The eight-minute live demo, beat by beat |
 
 ---
@@ -367,6 +368,7 @@ for each system, a `kind` and a `location`:
 | Kind | Source | How it is ingested |
 |---|---|---|
 | `postgres` | OrderDB, the live order system | Fetched over the wire at start-up with `COPY TO STDOUT` from the database named by `RATIONALE_OMS_DSN` (about 270 ms for 85k rows on this laptop). If that is unset or unreachable, the last nightly extract is loaded instead and the provenance says so |
+| `sql` | Any warehouse with a SQLAlchemy URL: Snowflake, Databricks SQL, Fabric, BigQuery, PostgreSQL, SQLite | Same contract as `postgres` through the vendor's driver; proven against PostgreSQL and SQLite, vendor URLs documented in `docs/PLATFORMS.md` |
 | `csv` | The WMS daily file and the marketing weekly file | Read directly |
 | `jsonl` | The CRM event export, one JSON object per line | Read directly; DuckDB's JSON reader is built in and works offline |
 | `parquet` | Not used by the demo | Supported for a lakehouse drop |
@@ -1162,15 +1164,15 @@ accuracy falls below 1.0, and CI runs it on every push.
 
 ## 22. Tests, CI and the benchmark
 
-**223 tests**, where Round 2 had a smoke script that printed everything and
-asserted nothing. 211 run with no database at all; 12 need PostgreSQL and run
+**234 tests**, where Round 2 had a smoke script that printed everything and
+asserted nothing. 220 run with no database at all; 14 need PostgreSQL and run
 in CI against a service container.
 
 | Area | Files | Tests | What they pin |
 |---|---|---|---|
-| `tests/unit/` | anomaly, causal_graph_forecast, confidence, contribution, explore, intent, live_ingest, retrieve, screening, sources, store, telemetry | 87 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL; three systems in three formats land typed, the live order system is fetched over the wire in CI, and an unreachable source falls back visibly without leaking credentials; the causal estimate is negative with an interval clear of zero for the regional shock and not identifiable for the national one; the graph has no dangling edges and names the right owners; the forecast is anchored on the analysis month |
+| `tests/unit/` | anomaly, causal_graph_forecast, confidence, contribution, explore, intent, live_ingest, retrieve, screening, sources, store, telemetry, warehouse_kind | 94 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL; three systems in three formats land typed, the live order system is fetched over the wire in CI, and an unreachable source falls back visibly without leaking credentials; the causal estimate is negative with an interval clear of zero for the regional shock and not identifiable for the national one; the graph has no dangling edges and names the right owners; the forecast is anchored on the analysis month |
 | `tests/rbac/` | rbac, cache_isolation | 16 | Row security is in the SQL; the restricted role sees strictly less revenue; hidden KPIs are hidden; masking reaches retrieved evidence, not just the screen; every cached path is role-keyed and a primed cache does not leak across roles, including the IsolationForest cache and the replay ticker |
-| `tests/integration/` | pyramid_paths, learning_loop, abstain_loop, dispatch, mcp_transport, api, backend_parity, watch | 61 | The golden path is TENTATIVE with the right lead; the measurement artifact does not corroborate; the abstain, sparse and no-signal paths; the executive never sees a standardised score; a correction demotes and a confirmation promotes; a confirming answer changes the verdict and carries provenance, a ruling-out keeps the abstention; recipient and approval come from the contract; nothing sends without approval; the MCP flow posts through a real local server, discovers the right tool, and fails closed; the PostgreSQL parity suite of Section 9.1a, including the INSERT-only grant; the watcher drafts every material movement once, escalates a live breach once per day, and never sends |
+| `tests/integration/` | pyramid_paths, learning_loop, abstain_loop, dispatch, mcp_transport, api, backend_parity, watch, export_bi | 65 | The golden path is TENTATIVE with the right lead; the measurement artifact does not corroborate; the abstain, sparse and no-signal paths; the executive never sees a standardised score; a correction demotes and a confirmation promotes; a confirming answer changes the verdict and carries provenance, a ruling-out keeps the abstention; recipient and approval come from the contract; nothing sends without approval; the MCP flow posts through a real local server, discovers the right tool, and fails closed; the PostgreSQL parity suite of Section 9.1a, including the INSERT-only grant; the watcher drafts every material movement once, escalates a live breach once per day, and never sends |
 | `tests/ui/` | test_app, test_snapshots | 36 | Headless `AppTest` runs of every page for every role; the ask box fires only on submit; the sales head cannot reach restricted KPIs; the ledger masks for the viewer; dark mode repaints the charts; and **21 rendered-text snapshots** (HTML stripped; latency, timestamps, ids and money normalised) that must be byte-identical after any refactor |
 | `tests/test_layering.py` | — | 23 | The architectural boundaries in Section 7 |
 
@@ -1247,6 +1249,7 @@ python -m ops.bench --json               # latency + concurrency (--check to gat
 python -m ops.ingest --rate 2 --inject-anomaly 40   # the live lane, in a second terminal
 python -m ops.pg_local init              # optional: PostgreSQL as a user process, loaded and provisioned
 python -m ops.watch                      # proactive pass: scan, draft into the Outbox, never send
+python -m ops.export_bi                  # BI hand-off: every output as CSV + Parquet in data/exports/
 python -m pytest                         # 179 tests
 python record_fixtures.py                # re-record the offline demo (needs a key; ~₹25–30)
 ```
@@ -1259,7 +1262,7 @@ the demo is unchanged.
 | `ANTHROPIC_API_KEY` | Enables live mode (or paste it in the sidebar; held in memory only) |
 | `MOCK_MODE=1` | Forces offline mode even with a key. Tests and eval set it |
 | `RATIONALE_STATE=<dir>` | Relocates the ledger, feedback, outbox and dispatch logs |
-| `RATIONALE_DB=postgresql://…` | Runs the analytics and the event streams on PostgreSQL (Section 9.1a). Unset: DuckDB and JSONL |
+| `RATIONALE_DB=postgresql://…` | Runs the analytics and the event streams on PostgreSQL (Section 9.1a). Unset: DuckDB and JSONL. Any other SQLAlchemy URL (`snowflake://`, `databricks://`, `mssql+pyodbc://`, `bigquery://`, `postgresql+psycopg://`) runs the contract SQL on that engine through its driver |
 | `RATIONALE_STORE` | `jsonl` keeps the event streams on disk while `RATIONALE_DB` supplies the numbers; a DSN sends them elsewhere |
 | `RATIONALE_PG_BIN`, `RATIONALE_PG_PORT` | Where `ops/pg_local.py` finds the PostgreSQL binaries, and the port it uses (default 5433) |
 | `RATIONALE_TEST_PG` | An owner DSN; enables the PostgreSQL store and parity tests |
@@ -1313,6 +1316,16 @@ cannot break a deployed demo. `.streamlit/config.toml` sets theme only; setting
 **Streaming versus batch, as a design position:** stream **detection** (a
 windowed z-rule per region, textbook Flink) and batch **diagnosis** (which needs
 the full corpus, a stable baseline and the ledger).
+
+**The platform seams, as they stand.** Custom in the middle, hybrid at four
+edges: any SQLAlchemy warehouse URL as a live source (`kind: sql`) or as the
+engine the contract SQL runs on (`RATIONALE_DB`), proven against PostgreSQL and
+SQLite; the ledger on PostgreSQL; and `python -m ops.export_bi`, which writes
+the scan, the series, the verdicts, the provenance, the contract graph and the
+evaluation cases as CSV and Parquet for Tableau, Power BI, Looker or Qlik. The
+vendor URLs for Snowflake, Databricks SQL, Fabric and BigQuery are listed in
+`docs/PLATFORMS.md` and marked untested; Snowflake and Databricks accept the
+contract's SQL as written, BigQuery would need the casts respelled.
 
 ### 25.3 Rehearsed answers
 
@@ -1422,7 +1435,7 @@ Python, excluding data and snapshots. Approximately 9,600 lines in total.
 |---|---|---|
 | `engine/` | 2,617 | 16 modules: pyramid, db, sources, anomaly, screening, stats_ml, contribution, drivers, retrieve, confidence, economics, policy, dispatch, explore, stream, cache |
 | `ui/` | 2,103 | theme, context, common, 4 components, 8 pages |
-| `tests/` | 2,105 | 23 files, 206 tests |
+| `tests/` | ~2,500 | 26 files, 234 tests |
 | top level | 1,237 | `app.py` (192), `store.py`, `feedback.py`, `telemetry.py`, `metrics.py`, `eval.py`, `record_fixtures.py` |
 | `services/` | 462 | scan, intent, outbox, transports, live_ingest |
 | `llm/` | 340 | client, prompts, fallback; 22 fixtures |
@@ -1511,3 +1524,4 @@ considered and the judge's likely question, in `docs/DESIGN_DECISIONS.md`.
 | The contract as a knowledge graph; exposure | D32 |
 | Proactive alerts: the watcher | D33 |
 | Alternatives considered; the action chain | D34 |
+| Platform: custom in the middle, hybrid at proven seams | D35 |

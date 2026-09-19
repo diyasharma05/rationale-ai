@@ -32,3 +32,5 @@ data/live/
 # local PostgreSQL instance (python -m ops.pg_local init): runtime data, never committed
 data/pg/
 data/state/_bench/
+# BI hand-off (python -m ops.export_bi): regenerated on demand
+data/exports/

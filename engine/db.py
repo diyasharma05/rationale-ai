@@ -15,6 +15,12 @@ Two analytics backends behind one `query()`:
               only file that knows where the data lives, and swapping the engine
               is a connection change plus the two dialect spellings noted in the
               contract -- not a rewrite.
+  Warehouse   when RATIONALE_DB is any other SQLAlchemy URL (snowflake://,
+              databricks://, mssql+pyodbc:// for Fabric, bigquery://,
+              postgresql+psycopg://). The contract SQL is sent to that engine
+              through the vendor's driver. Proven here through the generic path
+              against PostgreSQL; the vendor dialects are documented in
+              docs/PLATFORMS.md and have not been run against a vendor account.
 
 Everything above this file (the contract, the statistics, the gates, RBAC in the
 WHERE clause, masking before the prompt) is identical on both.
@@ -138,13 +144,61 @@ class _Postgres:
         return "PostgreSQL at " + redact(self.dsn)
 
 
+class _SQLAlchemy:
+    """Any warehouse with a SQLAlchemy dialect. One engine (a pool) per process."""
+    name = "sql"
+
+    def __init__(self, url: str):
+        self.url = url
+        self._engine = None
+        self._lock = threading.Lock()
+
+    def conn(self):
+        import sqlalchemy
+        if self._engine is None:
+            with self._lock:
+                if self._engine is None:
+                    self._engine = sqlalchemy.create_engine(self.url, pool_pre_ping=True)
+        return self._engine
+
+    def query(self, sql: str, params=()) -> pd.DataFrame:
+        import decimal
+        import sqlalchemy
+        bound = {}
+        if params:                                   # '?' positional -> :p0, :p1 named
+            parts = sql.split("?")
+            sql = "".join(p + (f":p{i}" if i < len(parts) - 1 else "") for i, p in enumerate(parts))
+            bound = {f"p{i}": v for i, v in enumerate(params)}
+        with self.conn().connect() as c:
+            res = c.execute(sqlalchemy.text(sql), bound)
+            df = pd.DataFrame(res.fetchall(), columns=list(res.keys()))
+        for col in df.columns:                       # parity with DuckDB's frames
+            if df[col].dtype == object:
+                nonnull = df[col].dropna()
+                if len(nonnull) and isinstance(nonnull.iloc[0], (_dt.date, _dt.datetime)):
+                    df[col] = pd.to_datetime(df[col]).astype("datetime64[us]")
+                elif len(nonnull) and isinstance(nonnull.iloc[0], decimal.Decimal):
+                    df[col] = df[col].astype(float)
+        return df
+
+    def describe(self) -> str:
+        from store import redact
+        dialect = self.url.split("://", 1)[0]
+        return f"{dialect} via SQLAlchemy at " + redact(self.url)
+
+
 _BACKEND = None
 _BACKEND_LOCK = threading.Lock()
 
 
 def _make_backend(dsn: str):
     from store import is_postgres_dsn
-    return _Postgres(dsn) if is_postgres_dsn(dsn) else _DuckDB()
+    dsn = (dsn or "").strip()
+    if is_postgres_dsn(dsn):
+        return _Postgres(dsn)
+    if "://" in dsn:
+        return _SQLAlchemy(dsn)
+    return _DuckDB()
 
 
 def backend():

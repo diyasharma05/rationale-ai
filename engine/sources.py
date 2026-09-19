@@ -13,6 +13,13 @@ formats and real connections:
                      (the WMS daily file, the marketing weekly file).
     kind: jsonl      an event export, one JSON object per line (the CRM feed).
     kind: parquet    a lakehouse file, for completeness.
+    kind: sql        any warehouse reachable by a SQLAlchemy URL -- Snowflake,
+                     Databricks SQL, Microsoft Fabric / SQL Server, BigQuery,
+                     PostgreSQL, SQLite -- with the vendor's driver installed.
+                     Same contract as `postgres`: fetched at start-up, falls back
+                     to its extract visibly. Proven here against PostgreSQL and
+                     SQLite; the vendor URLs are documented in docs/PLATFORMS.md
+                     and have not been run against a vendor account.
 
 Every source lands in one governed namespace as a typed table with its date
 column cast once, so the contract SQL joins across systems (complaint rate is
@@ -31,7 +38,8 @@ import time
 
 from store import redact
 
-KINDS = ("csv", "jsonl", "json", "parquet", "postgres")
+KINDS = ("csv", "jsonl", "json", "parquet", "postgres", "sql")
+LIVE_KINDS = ("postgres", "sql")
 LIVE_TIMEOUT_S = 3
 
 
@@ -49,8 +57,8 @@ def registry(contract: dict, base: str) -> dict:
         s.setdefault("table", table)
         if s["kind"] not in KINDS:
             raise ValueError(f"source {table}: unknown kind {s['kind']!r}")
-        if s["kind"] == "postgres" and not s.get("fallback"):
-            raise ValueError(f"source {table}: a postgres source needs a `fallback` extract")
+        if s["kind"] in LIVE_KINDS and not s.get("fallback"):
+            raise ValueError(f"source {table}: a live ({s['kind']}) source needs a `fallback` extract")
         out[table] = s
     return out
 
@@ -60,6 +68,8 @@ def resolve_location(location: str, base: str) -> str:
     paths are relative to the repository root."""
     if location.startswith("env:"):
         return os.environ.get(location[4:], "").strip()
+    if "://" in location:                       # a connection URL, not a file path
+        return location
     p = pathlib.Path(location)
     return str(p if p.is_absolute() else pathlib.Path(base) / p)
 
@@ -96,6 +106,27 @@ def _fetch_postgres(dsn: str, table: str) -> str:
     return tmp
 
 
+def _fetch_sqlalchemy(url: str, table: str) -> str:
+    """Pull a table from any SQLAlchemy-reachable warehouse into a temporary CSV.
+    The vendor driver does the wire work; this is the same call for Snowflake,
+    Databricks, Fabric or BigQuery once their dialect package is installed."""
+    import pandas as pd
+    import sqlalchemy
+    engine = sqlalchemy.create_engine(url)
+    try:
+        with engine.connect() as c:
+            df = pd.read_sql_query(sqlalchemy.text(f"SELECT * FROM {table}"), c)
+    finally:
+        engine.dispose()
+    fd, tmp = tempfile.mkstemp(prefix=f"rationale_{table}_", suffix=".csv")
+    os.close(fd)
+    df.to_csv(tmp, index=False)
+    return tmp
+
+
+_FETCHERS = {"postgres": _fetch_postgres, "sql": _fetch_sqlalchemy}
+
+
 def load_one(conn, table: str, spec: dict, date_col: str, base: str, allow_live: bool = True) -> dict:
     """Load one source into the engine's namespace; return its provenance."""
     kind = spec["kind"]
@@ -103,7 +134,7 @@ def load_one(conn, table: str, spec: dict, date_col: str, base: str, allow_live:
             "grain": spec.get("grain", ""), "refresh": spec.get("refresh", ""),
             "location": "", "status": "", "note": "", "fetched_at": None}
     t0 = time.perf_counter()
-    if kind == "postgres":
+    if kind in LIVE_KINDS:
         dsn = resolve_location(spec["location"], base) if allow_live else ""
         prov["location"] = redact(dsn) if dsn else spec["location"]
         fallback = resolve_location(spec["fallback"], base)
@@ -113,7 +144,7 @@ def load_one(conn, table: str, spec: dict, date_col: str, base: str, allow_live:
             _create(conn, table, "csv", fallback, date_col)
         else:
             try:
-                tmp = _fetch_postgres(dsn, spec["table"])
+                tmp = _FETCHERS[kind](dsn, spec["table"])
                 try:
                     _create(conn, table, "csv", tmp, date_col)
                 finally:

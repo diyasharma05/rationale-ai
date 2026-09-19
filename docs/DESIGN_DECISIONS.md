@@ -384,7 +384,7 @@ same code, with RBAC enforced there (403). Show `/docs`.
 
 ### D21. Tests, CI, and the benchmark as gates. [R3]
 
-`smoke_test.py` printed everything and asserted nothing; it is gone. 198 tests
+`smoke_test.py` printed everything and asserted nothing; it is gone. 234 tests
 now, plus `eval.py --check` (accuracy) and `ops/bench.py --check` (latency
 budget and correctness under concurrency) in CI. Measured concurrency: ~8–9
 req/s on one process, p50 243 ms at N = 1 rising to 1.7 s at N = 16, **zero
@@ -790,6 +790,27 @@ follows the brief's chain in the brief's order, driver → controllable lever �
 action → expected impact → owner → confidence → monitoring plan, with the owner
 and decision right resolved from the contract rather than from the sentence the
 model wrote.
+
+### D35. Platform: custom where it reasons, hybrid where it lands, and the seams are proven generically. [R3]
+
+The brief allows platform-native, custom or hybrid. Custom in the middle, for
+the reasons the thesis needs (auditability, offline operation, cost, a contract
+that ports); hybrid at four seams, each with a mechanism that has been run
+against something real: sources of any kind including any SQLAlchemy warehouse
+URL (proven on PostgreSQL and SQLite), the contract SQL on any SQLAlchemy engine
+(proven on PostgreSQL through the generic path, with parity to DuckDB), the
+ledger on PostgreSQL, and a BI hand-off of every output as CSV and Parquet plus
+the API. The vendor URLs for Snowflake, Databricks SQL, Fabric and BigQuery are
+documented in `docs/PLATFORMS.md` and have not been run against a vendor
+account; that is one trial sign-up away, and we say so rather than imply it.
+
+**Judge asks:** *"Why not build this on Databricks / Fabric?"*
+**Answer:** Because the thing we are demonstrating, a model that never touches
+a number, is easier to guarantee and to show offline in an engine we control.
+The engine has no opinion about where the data lives or where the results go:
+point the contract at your warehouse and your dashboard at the export, and the
+reasoning stays the same. We have proven those seams against PostgreSQL; the
+vendor step is a driver and a URL.
 
 ## Part V — The honest opening
 

@@ -19,3 +19,7 @@ prometheus_client>=0.20,<1
 # optional second backend: RATIONALE_DB=postgresql://... runs the same contract SQL and
 # the event streams on PostgreSQL (ops/pg_local.py). Imported lazily; DuckDB stays the default.
 psycopg[binary]>=3.1,<4
+# generic warehouse seam: `kind: sql` sources and RATIONALE_DB as any SQLAlchemy URL.
+# Vendor dialects (snowflake-sqlalchemy, databricks-sqlalchemy, sqlalchemy-bigquery,
+# pyodbc for Fabric) are installed by the deployment that needs them.
+sqlalchemy>=2,<3
