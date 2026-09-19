@@ -152,6 +152,10 @@ kpis:
     definition: "Support complaints per 1,000 completed orders."
     owner: "Head of Customer Service"
     source: crm_events
+    # The ratio is cast to double so every engine computes it the same way:
+    # Snowflake's fixed-point NUMBER division otherwise rounds at the sixth
+    # decimal (found by the Snowflake parity run). SQL comments must never go
+    # inside these folded blocks: YAML joins the lines, and `--` would eat the rest.
     sql: >
       WITH c AS (
         SELECT date_trunc('month', CAST(event_date AS DATE)) AS period, COUNT(*) AS n
@@ -161,8 +165,6 @@ kpis:
         SELECT date_trunc('month', CAST(order_date AS DATE)) AS period, COUNT(*) AS n
         FROM sales_orders WHERE 1=1 {where}
         GROUP BY 1)
-      -- the ratio is double arithmetic on every engine: Snowflake's NUMBER division
-      -- otherwise rounds at the sixth decimal (found by the Snowflake parity run)
       SELECT o.period, 1000.0 * COALESCE(c.n,0)::DOUBLE PRECISION / o.n AS value
       FROM o LEFT JOIN c USING (period) ORDER BY 1
     dimensions: [region]
