@@ -363,7 +363,8 @@ needs a client's labelled history.
 
 Scalability posture: the analytics push down to the warehouse via contract SQL;
 `engine/db.py` is the **only file that knows where the data lives** (swapping DuckDB for
-Snowflake/Databricks/BigQuery/Postgres is one connection change plus a dialect pass);
+Snowflake/Databricks/BigQuery/Postgres is one connection change plus a dialect pass — done and
+parity-tested for PostgreSQL: `RATIONALE_DB=postgresql://...`, see `ops/pg_local.py`);
 investigations are stateless given (KPI, period, role) so they shard horizontally; prompt
 size — and therefore cost — is independent of data volume because only aggregates reach
 the model.
@@ -440,5 +441,5 @@ evaluation is against synthetic ground truth.
 
 **Roadmap**: predictive "what-if" mode · STL/seasonal baselines · embedding retrieval ·
 warehouse connectors (Snowflake/Databricks) behind the existing `engine/db.py` seam ·
-scheduled proactive scans with alert delivery · OAuth/SSO · Postgres-backed ledger ·
+scheduled proactive scans with alert delivery · OAuth/SSO · warehouse-native row-access policies ·
 causal-graph inference · calibration against a client's labelled incident history.

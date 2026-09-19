@@ -1,7 +1,23 @@
-"""Data access layer: DuckDB over the CSV sources, semantic contract, and
+"""Data access layer: the analytics tables, the semantic contract, and
 role-based security (row filters + account-name masking) enforced here —
 never in the UI.
+
+Two analytics backends behind one `query()`:
+
+  DuckDB      default. In-process, the four CSV sources materialised as typed
+              tables at first use. Zero infrastructure; what the offline demo,
+              the tests and CI run on.
+  PostgreSQL  when RATIONALE_DB is a postgresql:// DSN. The same contract SQL
+              runs unchanged against tables loaded by `python -m ops.pg_local`.
+              This is the portability claim made concrete: engine/db.py is the
+              only file that knows where the data lives, and swapping the engine
+              is a connection change plus the two dialect spellings noted in the
+              contract -- not a rewrite.
+
+Everything above this file (the contract, the statistics, the gates, RBAC in the
+WHERE clause, masking before the prompt) is identical on both.
 """
+import datetime as _dt
 import hashlib
 import os
 import threading
@@ -27,48 +43,158 @@ _SOURCES = {
     "marketing_weekly": "marketing_weekly.csv",
 }
 
-_conn = None
-_conn_lock = threading.Lock()
+
+# ---------------- backends ----------------
+
+class _DuckDB:
+    name = "duckdb"
+
+    def __init__(self):
+        self._conn = None
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _build():
+        """Materialize the CSV sources as typed TABLEs.
+
+        Deliberately tables, not views: a view over read_csv_auto() re-parses the
+        whole file on *every* query (~54 ms per call against an 85k-row CSV, with
+        no warm-up benefit). One build at startup costs ~200 ms and makes every
+        subsequent query a scan of an in-memory table.
+        """
+        conn = duckdb.connect()
+        for table, fname in _SOURCES.items():
+            path = os.path.join(DATA, fname).replace("\\", "/")
+            col = DATE_COLS[table]
+            conn.execute(
+                f"CREATE TABLE {table} AS SELECT * REPLACE (CAST({col} AS DATE) AS {col}) "
+                f"FROM read_csv_auto('{path}')")
+        return conn
+
+    def conn(self):
+        """The process-wide DuckDB handle. Built once, under a lock: Streamlit
+        runs each session's script in its own thread, so an unguarded
+        check-then-set here lets two threads both build the tables."""
+        if self._conn is None:
+            with self._lock:
+                if self._conn is None:          # re-check with the lock held
+                    self._conn = self._build()
+        return self._conn
+
+    def query(self, sql: str, params=()) -> pd.DataFrame:
+        """Execute on a per-call cursor over the shared database.
+
+        DuckDB's documented pattern for concurrent use: one database, a cursor
+        per thread. Sharing the top-level connection across Streamlit session
+        threads interleaves result sets.
+        """
+        return self.conn().cursor().execute(sql, params).fetchdf()
+
+    def describe(self) -> str:
+        return "DuckDB, in-process, materialised from data/*.csv"
 
 
-def _build():
-    """Materialize the CSV sources as typed TABLEs.
+class _Postgres:
+    name = "postgresql"
 
-    Deliberately tables, not views: a view over read_csv_auto() re-parses the
-    whole file on *every* query (~54 ms per call against an 85k-row CSV, with no
-    warm-up benefit). One build at startup costs ~200 ms and makes every
-    subsequent query a scan of an in-memory table.
-    """
-    conn = duckdb.connect()
-    for table, fname in _SOURCES.items():
-        path = os.path.join(DATA, fname).replace("\\", "/")
-        col = DATE_COLS[table]
-        conn.execute(
-            f"CREATE TABLE {table} AS SELECT * REPLACE (CAST({col} AS DATE) AS {col}) "
-            f"FROM read_csv_auto('{path}')")
-    return conn
+    def __init__(self, dsn: str):
+        self.dsn = dsn
+        self._local = threading.local()      # one connection per thread; never shared
+
+    def conn(self):
+        import psycopg
+        from psycopg.types.numeric import FloatLoader
+        c = getattr(self._local, "conn", None)
+        if c is None or c.closed:
+            c = psycopg.connect(self.dsn, autocommit=True)
+            # NUMERIC results (e.g. 1000.0 * count / count) arrive as Decimal by
+            # default; the engine does float arithmetic on every value column,
+            # and DuckDB hands back float64, so load them as floats for parity.
+            c.adapters.register_loader("numeric", FloatLoader)
+            self._local.conn = c
+        return c
+
+    def query(self, sql: str, params=()) -> pd.DataFrame:
+        import psycopg
+        if params:
+            sql = sql.replace("?", "%s")     # DuckDB placeholder -> psycopg placeholder
+        try:
+            cur = self.conn().cursor()
+            cur.execute(sql, params or None)
+        except psycopg.OperationalError:
+            self._local.conn = None          # one reconnect, then let it raise
+            cur = self.conn().cursor()
+            cur.execute(sql, params or None)
+        cols = [d.name for d in cur.description]
+        df = pd.DataFrame(cur.fetchall(), columns=cols)
+        # Parity with DuckDB's fetchdf(): DATE columns come back as datetime64,
+        # not as Python date objects, so downstream code (and the content hash
+        # the ML cache is keyed on) sees the same frame from either engine.
+        for c in df.columns:
+            if df[c].dtype == object:
+                nonnull = df[c].dropna()
+                if len(nonnull) and isinstance(nonnull.iloc[0], (_dt.date, _dt.datetime)):
+                    df[c] = pd.to_datetime(df[c])
+        return df
+
+    def describe(self) -> str:
+        from store import redact
+        return "PostgreSQL at " + redact(self.dsn)
+
+
+_BACKEND = None
+_BACKEND_LOCK = threading.Lock()
+
+
+def _make_backend(dsn: str):
+    from store import is_postgres_dsn
+    return _Postgres(dsn) if is_postgres_dsn(dsn) else _DuckDB()
+
+
+def backend():
+    global _BACKEND
+    if _BACKEND is None:
+        with _BACKEND_LOCK:
+            if _BACKEND is None:
+                _BACKEND = _make_backend(os.environ.get("RATIONALE_DB", ""))
+    return _BACKEND
+
+
+def set_backend(dsn: str = ""):
+    """Point the engine at another analytics store (tests and tooling). Every
+    cache derived from the data is cleared, because they are keyed on role and
+    period, not on where the rows came from."""
+    global _BACKEND
+    _BACKEND = _make_backend(dsn or "")
+    clear_caches()
+
+
+def clear_caches():
+    for fn in (source_freshness, source_stats, _account_names):
+        fn.cache_clear()
+    try:                                   # derived caches in sibling modules
+        from . import screening, stream
+        screening.family_qvalues.cache_clear()
+        for fn in (stream._daily_region, stream._daily, stream._recent_events):
+            fn.cache_clear()
+    except Exception:
+        pass
+
+
+def backend_info() -> dict:
+    b = backend()
+    return {"backend": b.name, "detail": b.describe()}
 
 
 def get_conn():
-    """The process-wide DuckDB handle. Built once, under a lock: Streamlit runs
-    each session's script in its own thread, so an unguarded check-then-set here
-    lets two threads both build the tables."""
-    global _conn
-    if _conn is None:
-        with _conn_lock:
-            if _conn is None:          # re-check with the lock held
-                _conn = _build()
-    return _conn
+    """The DuckDB handle (DuckDB backend only). Kept for tooling; application
+    code reads through query()."""
+    return backend().conn()
 
 
 def query(sql: str, params=()) -> pd.DataFrame:
-    """Execute on a per-call cursor over the shared database.
-
-    DuckDB's documented pattern for concurrent use: one database, a cursor per
-    thread. Sharing the top-level connection across Streamlit session threads
-    interleaves result sets. Every read in the codebase should come through here.
-    """
-    return get_conn().cursor().execute(sql, params).fetchdf()
+    """Every read in the codebase comes through here, whichever engine is behind it."""
+    return backend().query(sql, params)
 
 
 @lru_cache(maxsize=1)

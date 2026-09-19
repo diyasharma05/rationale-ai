@@ -27,3 +27,8 @@ data/state/_eval/
 
 # live ingestion lane (ops/ingest.py) — runtime scratch, never committed
 data/live/
+*.docx
+
+# local PostgreSQL instance (python -m ops.pg_local init): runtime data, never committed
+data/pg/
+data/state/_bench/

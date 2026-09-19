@@ -24,6 +24,9 @@ os.environ.setdefault("MOCK_MODE", "1")
 os.environ.setdefault("RATIONALE_STATE",
                       os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                    "data", "state", "_eval"))
+# ... and keep that isolation when the analytics run on PostgreSQL: the numbers
+# come from RATIONALE_DB, the scoring run's ledger stays on disk.
+os.environ.setdefault("RATIONALE_STORE", "jsonl")
 
 from engine import anomaly, confidence, db, pyramid, screening   # noqa: E402
 from llm.client import LLMClient                 # noqa: E402

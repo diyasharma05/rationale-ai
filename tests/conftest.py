@@ -23,6 +23,9 @@ _STATE = pathlib.Path(tempfile.gettempdir()) / "rationale_pytest_state"
 _STATE.mkdir(parents=True, exist_ok=True)
 os.environ["MOCK_MODE"] = "1"
 os.environ["RATIONALE_STATE"] = str(_STATE)
+# The default suite always runs on DuckDB + JSONL. PostgreSQL is opt-in through
+# RATIONALE_TEST_PG (see tests/integration/test_backend_parity.py).
+os.environ.pop("RATIONALE_DB", None)
 
 import pytest  # noqa: E402
 

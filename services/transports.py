@@ -9,9 +9,9 @@ import os
 import pathlib
 import time
 
-STATE = pathlib.Path(os.environ.get("RATIONALE_STATE")
-                     or pathlib.Path(__file__).resolve().parent.parent / "data" / "state")
-SENT_LOG = STATE / "dispatched.jsonl"
+import store
+
+SENT_STREAM = "dispatched"     # the dispatch log: JSONL by default, PostgreSQL when configured
 
 
 class DryRunTransport:
@@ -26,12 +26,10 @@ class DryRunTransport:
     live = False
 
     def send(self, message: dict) -> dict:
-        STATE.mkdir(parents=True, exist_ok=True)
         record = {"ts": time.time(), "transport": self.name, **message}
-        with open(SENT_LOG, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, default=str) + "\n")
+        store.append(SENT_STREAM, record)
         return {"ok": True, "transport": self.name,
-                "detail": f"recorded to {SENT_LOG.name} (not delivered)"}
+                "detail": "recorded to the dispatch log (not delivered)"}
 
 
 # Tool discovery. Every vendor names its posting tool differently -- the

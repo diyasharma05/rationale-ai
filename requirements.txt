@@ -16,3 +16,6 @@ scikit-learn>=1.4,<2
 scipy>=1.11,<2
 python-dotenv>=1.0,<2
 prometheus_client>=0.20,<1
+# optional second backend: RATIONALE_DB=postgresql://... runs the same contract SQL and
+# the event streams on PostgreSQL (ops/pg_local.py). Imported lazily; DuckDB stays the default.
+psycopg[binary]>=3.1,<4

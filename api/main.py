@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 import feedback
+import store
 import telemetry
 from engine import db, pyramid, screening
 from llm.client import LLMClient
@@ -39,6 +40,7 @@ class Investigation(BaseModel):
 def healthz():
     """Liveness + what this instance is actually configured to do."""
     return {"status": "ok", "llm_mode": _llm.mode,
+            "db": db.backend_info(), "store": store.backend_info(),
             "kpis": len(db.load_contract()["kpis"]),
             "roles": sorted(db.load_roles())}
 

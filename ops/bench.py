@@ -20,6 +20,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 os.environ.setdefault("MOCK_MODE", "1")
+# A benchmark runs hundreds of investigations; they belong in a throwaway
+# ledger, not the demo's (and never in a shared PostgreSQL one).
+os.environ.setdefault("RATIONALE_STATE",
+                      os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                   "data", "state", "_bench"))
+os.environ.setdefault("RATIONALE_STORE", "jsonl")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import feedback                                    # noqa: E402

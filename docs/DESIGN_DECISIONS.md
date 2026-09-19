@@ -384,12 +384,13 @@ same code, with RBAC enforced there (403). Show `/docs`.
 
 ### D21. Tests, CI, and the benchmark as gates. [R3]
 
-`smoke_test.py` printed everything and asserted nothing; it is gone. 179 tests
+`smoke_test.py` printed everything and asserted nothing; it is gone. 198 tests
 now, plus `eval.py --check` (accuracy) and `ops/bench.py --check` (latency
 budget and correctness under concurrency) in CI. Measured concurrency: ~8–9
 req/s on one process, p50 243 ms at N = 1 rising to 1.7 s at N = 16, **zero
 wrong answers at every level** — the thread-safety fix holds under contention,
-and past that point you add replicas because the service is stateless.
+and past that point you add replicas because the service is stateless — stateless
+except for the ledger write, which is why D28 gives the ledger a shared home.
 
 ### D22. What we have not solved, in order of how much it would matter. [R3]
 
@@ -556,6 +557,75 @@ rather than proof. The verdict moves from "we don't know" to "likely, per
 the head of growth, unmeasured", not to "established". Compare that to a
 dashboard, where the same conversation happens in a Slack thread and is gone
 by next quarter.
+
+### D28. A second engine, not a replacement: PostgreSQL behind the same contract. [R3] **[team call]**
+
+The ask was: replace DuckDB with PostgreSQL to show the prototype is ready to
+scale, and do it without Docker. We did the second half literally and the first
+half differently, and the reasoning is worth having ready because an evaluator
+will ask the same question from the other side.
+
+**Why not replace.** PostgreSQL is a transactional row store. The scale answer
+for the *numbers* is the client's warehouse (Snowflake, BigQuery, Databricks)
+reading pre-aggregated marts, which the deployment story already says; putting
+the analytics on PostgreSQL would invite "why not the warehouse?" and "how does
+it aggregate a hundred million rows?", and it would make the offline laptop
+demo depend on a database server. For the analytical scans this engine does,
+DuckDB is also the faster tool.
+
+**What we did instead.** Made the data layer pluggable and gave the shared
+state a transactional home.
+
+- `engine/db.py` has two backends behind one `query()`; `RATIONALE_DB` set to
+  a `postgresql://` DSN selects PostgreSQL. DuckDB stays the default.
+- `store.py` holds the four append-only streams (ledger, feedback, outbox,
+  dispatch log) as JSONL by default, or as one `events` table on PostgreSQL.
+  The application role is INSERT and SELECT only: append-only by grant, not by
+  convention. Reset is an operator command.
+- `ops/pg_local.py` runs PostgreSQL as a plain user process from the portable
+  binaries: no Docker, no service, no admin rights. The team's constraint, and
+  a better fit for a finale laptop.
+- Dialect changes required: six casts (`::DOUBLE` to `::DOUBLE PRECISION`,
+  valid in both), placeholder translation for the two parameter-bound
+  queries, and `COPY` for loading. That the list is this short is the evidence
+  that the contract SQL is portable.
+
+**Measured.** A parity suite runs in CI against a PostgreSQL service
+container: every KPI series for every role equal to a relative tolerance of
+1e-9; breakdowns and the daily frame equal; the same five KPIs flagged; the
+six July verdicts identical in outcome, confidence to three decimals and
+rank-1 explanation; the 36-case evaluation identical case by case. Every page
+renders for every role; `/healthz` names the engine and the store in use.
+Speed, same laptop, same session (Docker Desktop and the PostgreSQL server
+were also running, so absolute figures sit below D21's; the ratio is the
+reading):
+
+| | DuckDB | PostgreSQL |
+|---|---|---|
+| KPI series query, median | 12 ms | 66 ms |
+| Portfolio scan, median | 64 ms | 194 ms |
+| Investigation p50 at N = 1 | 382 ms | 538 ms |
+| Investigation p50 at N = 16 | 3.7 s | 4.0 s |
+| Throughput at N = 16 | 4.0 req/s | 3.9 req/s |
+| Wrong answers under contention | 0 | 0 |
+| `eval.py`, median per case | 7.6 ms | 48 ms |
+
+PostgreSQL is three to five times slower per query because each of an
+investigation's roughly thirty small queries is a network round trip. At
+sixteen concurrent investigations the two converge, because the Python
+process, not the database, is the bottleneck there. Zero wrong answers on
+either.
+
+**Judge asks:** *"So is it DuckDB or PostgreSQL?"*
+**Answer:** Whichever you point it at, and the verdicts do not change. That is
+the claim, and it is a test, not a slide. DuckDB for the laptop and for CI;
+PostgreSQL for the shared ledger and to prove the seam; your warehouse for the
+numbers at scale.
+
+**Judge asks:** *"Why not PostgreSQL everywhere, then?"*
+**Answer:** Because it is the wrong engine for analytical scans and you already
+own a warehouse. The engine reads a pre-aggregated mart; the thing that must be
+shared across replicas is the ledger, and that is exactly what moved.
 
 ## Part V — The honest opening
 

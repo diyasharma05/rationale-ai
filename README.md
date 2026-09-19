@@ -66,7 +66,14 @@ not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on
 one process with zero wrong answers under contention, which is the honest
 "add replicas past here" answer.
 
-**It is tested.** 179 tests where there were effectively none:
+**It runs on PostgreSQL too.** One variable, `RATIONALE_DB`, points the engine at a
+PostgreSQL database instead of the in-process DuckDB: the same contract SQL, the same
+RBAC clause, and the ledger and outbox as one shared append-only table with an
+INSERT-only application role. A parity suite asserts every KPI series and all 36
+evaluation verdicts are identical on both engines. `python -m ops.pg_local init` runs
+PostgreSQL as a plain user process — no Docker, no service, no admin rights.
+
+**It is tested.** 198 tests where there were effectively none:
 `smoke_test.py` printed everything and asserted nothing. The accuracy harness is
 mutation-tested — seed a wrong expected driver and root-cause accuracy drops
 4/4 → 3/4 — and 15 render snapshots gated a refactor that took `app.py` from
@@ -199,6 +206,24 @@ the only script permitted to write them, so a live session can never overwrite t
 
 ---
 
+### Optional: run it on PostgreSQL (no Docker, no admin rights)
+
+```bash
+python -m ops.pg_local fetch     # portable PostgreSQL 16 binaries (~320 MB, once, to ~/pgsql16)
+python -m ops.pg_local init      # start it as a user process on :5433, load the CSVs, create roles
+python -m ops.pg_local env       # prints the RATIONALE_DB line for your shell
+# then, in that shell:
+streamlit run app.py             # same app; the Lineage page and /healthz now say PostgreSQL
+python eval.py                   # same 36 verdicts
+python -m ops.pg_local stop      # when done
+```
+
+DuckDB remains the default and the tests run without a database. The application
+connects as `rationale_app`, which can SELECT and INSERT and nothing else, so the ledger
+is append-only by grant; `python -m ops.pg_local reset-ledger` is the operator reset.
+
+---
+
 ## What you can do in the app
 
 **Dashboard** — severity-ordered KPI triage. Stat tiles for the month (KPIs needing
@@ -297,10 +322,13 @@ llm/
 data/generate_data.py        seeded generator + planted scenarios
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
-tests/                       179 tests: unit, RBAC, integration, UI snapshots
+store.py                     event streams: JSONL by default, PostgreSQL via RATIONALE_DB
+tests/                       198 tests: unit, RBAC, integration, UI snapshots, PostgreSQL parity
 ops/bench.py                 latency + concurrency benchmark
+ops/pg_local.py              run the same contract on PostgreSQL without Docker
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)
 DEMO_SCRIPT.md               judge walkthrough
+docs/PRODUCT_GUIDE.md        the complete product + technology guide (start here)
 ```
 
 ---

@@ -19,6 +19,10 @@ streamlit run app.py
   once the night before; if the venue network is doubtful, leave it in dry run.
 - Optional, if you want the container story on screen: `docker compose up`
   brings up the app, the API (`localhost:8000/docs`), Prometheus and Grafana.
+- Optional, for the portability beat (no Docker needed): the night before, run
+  `python -m ops.pg_local init` once. On the day, set the `RATIONALE_DB` line it
+  prints and launch a second `streamlit run app.py` on another port. The Lineage
+  page names the engine; the verdicts are the same to three decimals.
 
 ---
 
@@ -209,6 +213,12 @@ Under the Hood → **"Does it actually get the right answer?"**
   FastAPI service (`/docs`), because `investigate(kpi, period, role)` is
   stateless given its inputs. RBAC is enforced at the API, not just the UI —
   a restricted role gets a 403.
+- **"Isn't this all DuckDB? Where does the ledger live with replicas?"** →
+  One variable. `RATIONALE_DB` points the same contract at PostgreSQL; the
+  ledger and outbox become one shared append-only table the app can only
+  INSERT into. Show the Lineage page saying PostgreSQL, then the same revenue
+  verdict at 0.715. DuckDB stays the default because a demo laptop should
+  need no server.
 - **"How far does it scale?"** → Show the measured curve: ~8-9 req/s on one
   process, p50 243ms at N=1 rising to 1.7s at N=16, zero wrong answers at any
   level. Past that you add replicas; the service is stateless. At 100M rows you

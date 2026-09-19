@@ -8,48 +8,31 @@ an engine that messaged a VP off its own verdict would undo that.
 Append-only, like the decision ledger: a draft, an approval and a send are
 three events about one message, not three states overwritten in place. The
 audit question "who sent this, and when did they approve it" has to be
-answerable afterwards.
+answerable afterwards. Events go through store.py, so the outbox lives in the
+same place as the ledger: JSONL by default, PostgreSQL when configured.
 """
-import json
-import os
-import pathlib
 import uuid
 from datetime import datetime
 
+import store
 from engine import dispatch
 from services import transports
 
-STATE = pathlib.Path(os.environ.get("RATIONALE_STATE")
-                     or pathlib.Path(__file__).resolve().parent.parent / "data" / "state")
-OUTBOX = STATE / "outbox.jsonl"
+STREAM = "outbox"
 
 DRAFT, APPROVED, SENT, FAILED, CANCELLED = "draft", "approved", "sent", "failed", "cancelled"
 
 
 def _append(event: dict):
-    STATE.mkdir(parents=True, exist_ok=True)
-    with open(OUTBOX, "a", encoding="utf-8") as f:
-        f.write(json.dumps(event, default=str) + "\n")
+    store.append(STREAM, event)
 
 
 def _events():
-    if not OUTBOX.exists():
-        return []
-    out = []
-    with open(OUTBOX, encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue          # a torn append must not break the page
-    return out
+    return [e for e in store.read(STREAM) if isinstance(e, dict)]
 
 
 def reset():
-    if OUTBOX.exists():
-        OUTBOX.unlink()
+    store.reset(STREAM)
 
 
 def draft(result: dict, cfg: dict, actor: str) -> list:

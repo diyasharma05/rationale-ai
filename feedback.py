@@ -2,23 +2,26 @@
 appended to the ledger; the ledger is part of the Level-2 retrieval corpus,
 so past conclusions and user corrections inform future runs (the deck's
 "Recall" step and the learning loop).
+
+Storage goes through store.py: JSONL files under data/state/ by default, or a
+PostgreSQL events table when RATIONALE_DB points at one. Nothing here knows
+which; every record is an event appended to a named stream.
 """
-import json
 import os
 from datetime import datetime
 
+import store
+
 BASE = os.path.dirname(os.path.abspath(__file__))
-# RATIONALE_STATE lets tests and eval.py point at a throwaway directory, so a
-# test run never appends to the ledger it is measuring.
+# Kept for anything that still reasons about the JSONL layout (RATIONALE_STATE
+# lets tests and eval.py point at a throwaway directory, so a test run never
+# appends to the ledger it is measuring). The store decides whether these
+# paths are actually in use.
 STATE = os.environ.get("RATIONALE_STATE") or os.path.join(BASE, "data", "state")
 LEDGER = os.path.join(STATE, "decision_ledger.jsonl")
 FEEDBACK = os.path.join(STATE, "feedback.jsonl")
 
-
-def _append(path: str, obj: dict):
-    os.makedirs(STATE, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(obj, default=str) + "\n")
+LEDGER_STREAM, FEEDBACK_STREAM = "decision_ledger", "feedback"
 
 
 # Pre-seeded precedent: the Nov-2025 East dispatch incident (powers "Recall")
@@ -33,12 +36,14 @@ SEED_ENTRY = {
 
 
 def reset_ledger():
-    """Restore the ledger to its seed state (demo reset)."""
-    os.makedirs(STATE, exist_ok=True)
-    with open(LEDGER, "w", encoding="utf-8") as f:
-        f.write(json.dumps(SEED_ENTRY) + "\n")
-    if os.path.exists(FEEDBACK):
-        os.remove(FEEDBACK)
+    """Restore the ledger to its seed state (demo reset).
+
+    On an append-only PostgreSQL store this is an operator action; the
+    application role can seed an empty stream but not clear a populated one,
+    and store.reset raises PermissionError to say so.
+    """
+    store.reset(LEDGER_STREAM, [SEED_ENTRY])
+    store.reset(FEEDBACK_STREAM)
 
 
 def ensure_state():
@@ -48,15 +53,16 @@ def ensure_state():
     with no ledger at all. That silently changes Level-2 retrieval — the seeded
     Nov-2025 precedent drops out of the corpus and the [E#] ranks shift — so the
     same fixture can cite a different document than it did on the dev laptop.
-    Seeding at boot keeps every machine on the same corpus.
+    Seeding at boot keeps every machine on the same corpus. Appends rather than
+    resets, so it works for a role that may only INSERT.
     """
-    if not os.path.exists(LEDGER):
-        reset_ledger()
+    if not store.exists(LEDGER_STREAM):
+        store.append(LEDGER_STREAM, SEED_ENTRY)
 
 
 def log_investigation(result: dict) -> str:
     inv_id = f"INV-{result['period']}-{result['kpi'].upper()}-{datetime.now().strftime('%H%M%S')}"
-    _append(LEDGER, {
+    store.append(LEDGER_STREAM, {
         "id": inv_id,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "kpi": result["kpi"], "period": result["period"],
@@ -82,11 +88,11 @@ def log_feedback(inv_id: str, vote: str, comment: str = "", kpi: str = "",
     rec = {"id": inv_id, "timestamp": datetime.now().isoformat(timespec="seconds"),
            "vote": vote, "comment": comment, "kpi": kpi, "period": period,
            "driver": driver}
-    _append(FEEDBACK, rec)
-    _append(LEDGER, {"type": "verdict", "id": f"{inv_id}#verdict",
-                     "target": inv_id, "timestamp": rec["timestamp"],
-                     "kpi": kpi, "period": period, "driver": driver,
-                     "vote": vote, "comment": comment})
+    store.append(FEEDBACK_STREAM, rec)
+    store.append(LEDGER_STREAM, {"type": "verdict", "id": f"{inv_id}#verdict",
+                                 "target": inv_id, "timestamp": rec["timestamp"],
+                                 "kpi": kpi, "period": period, "driver": driver,
+                                 "vote": vote, "comment": comment})
 
 
 def log_answer(inv_id: str, kpi: str, period: str, question: str, answer: str,
@@ -106,7 +112,7 @@ def log_answer(inv_id: str, kpi: str, period: str, question: str, answer: str,
            "target": inv_id, "timestamp": ts, "actor": actor, "kpi": kpi,
            "period": period, "question": question, "answer": answer,
            "confirms": confirms}
-    _append(LEDGER, rec)
+    store.append(LEDGER_STREAM, rec)
     return rec["id"]
 
 
@@ -120,35 +126,24 @@ def answers_for(kpi: str, period: str) -> list:
 def read_ledger(include_verdicts: bool = False):
     """Investigations, with any human verdict folded in.
 
-    The file is append-only, so a vote arrives as a separate `verdict` record
+    The stream is append-only, so a vote arrives as a separate `verdict` record
     pointing at an existing id; reading folds it back onto the investigation
     it judges. Callers therefore see one row per investigation carrying its
     latest vote, rather than a stream of orphan feedback rows.
-
-    Tolerant of a torn line: an interrupted append (or a concurrent eval.py
-    run) must not permanently break every investigation, since the ledger is
-    also the Level-2 retrieval corpus.
     """
-    if not os.path.exists(LEDGER):
-        return []
     entries, verdicts = [], {}
-    with open(LEDGER, encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if rec.get("type") == "verdict":
-                verdicts[rec.get("target")] = rec      # last vote wins
-                if include_verdicts:
-                    entries.append(rec)
-            elif rec.get("type") == "answer":
-                if include_verdicts:                     # answers are events too
-                    entries.append(rec)
-            else:
+    for rec in store.read(LEDGER_STREAM):
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("type") == "verdict":
+            verdicts[rec.get("target")] = rec      # last vote wins
+            if include_verdicts:
                 entries.append(rec)
+        elif rec.get("type") == "answer":
+            if include_verdicts:                     # answers are events too
+                entries.append(rec)
+        else:
+            entries.append(rec)
     for e in entries:
         v = verdicts.get(e.get("id"))
         if v:

@@ -143,10 +143,14 @@ with st.sidebar:
             get_llm.clear()
             st.rerun()
     if st.button("↺ Reset demo state"):
-        fb.reset_ledger()
-        st.session_state.investigations = {}
-        telemetry.reset()
-        st.success("Ledger, feedback and cached investigations reset.")
+        try:
+            fb.reset_ledger()
+        except PermissionError as e:      # append-only PostgreSQL store: operator action
+            st.warning(str(e))
+        else:
+            st.session_state.investigations = {}
+            telemetry.reset()
+            st.success("Ledger, feedback and cached investigations reset.")
 
 # ---- top control bar (Grafana-style): analysis window, top right ----
 if nav in WINDOWED:

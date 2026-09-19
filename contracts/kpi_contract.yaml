@@ -109,13 +109,13 @@ kpis:
     source: ops_fulfilment
     sql: >
       SELECT date_trunc('month', CAST(ship_date AS DATE)) AS period,
-             100.0 * (1 - SUM(sla_breaches)::DOUBLE / NULLIF(SUM(shipments),0)) AS value
+             100.0 * (1 - SUM(sla_breaches)::DOUBLE PRECISION / NULLIF(SUM(shipments),0)) AS value
       FROM ops_fulfilment WHERE 1=1 {where}
       GROUP BY 1 ORDER BY 1
     dimensions: [region]
     dim_sql: >
       SELECT {dim} AS member,
-             100.0 * (1 - SUM(sla_breaches)::DOUBLE / NULLIF(SUM(shipments),0)) AS value
+             100.0 * (1 - SUM(sla_breaches)::DOUBLE PRECISION / NULLIF(SUM(shipments),0)) AS value
       FROM ops_fulfilment
       WHERE date_trunc('month', CAST(ship_date AS DATE)) = DATE '{period}' {where}
       GROUP BY 1
@@ -150,7 +150,7 @@ kpis:
       FROM o LEFT JOIN c USING (period) ORDER BY 1
     dimensions: [region]
     dim_sql: >
-      SELECT {dim} AS member, COUNT(*)::DOUBLE AS value
+      SELECT {dim} AS member, COUNT(*)::DOUBLE PRECISION AS value
       FROM crm_events
       WHERE event_type = 'complaint'
         AND date_trunc('month', CAST(event_date AS DATE)) = DATE '{period}' {where}
@@ -183,7 +183,7 @@ kpis:
       GROUP BY 1 ORDER BY 1
     dimensions: [region]
     dim_sql: >
-      SELECT {dim} AS member, COUNT(DISTINCT account)::DOUBLE AS value
+      SELECT {dim} AS member, COUNT(DISTINCT account)::DOUBLE PRECISION AS value
       FROM sales_orders
       WHERE segment = 'enterprise'
         AND date_trunc('month', CAST(order_date AS DATE)) = DATE '{period}' {where}
@@ -210,13 +210,13 @@ kpis:
     source: marketing_weekly
     sql: >
       SELECT date_trunc('month', CAST(week_start AS DATE)) AS period,
-             100.0 * SUM(conversions)::DOUBLE / NULLIF(SUM(sessions),0) AS value
+             100.0 * SUM(conversions)::DOUBLE PRECISION / NULLIF(SUM(sessions),0) AS value
       FROM marketing_weekly WHERE 1=1 {where}
       GROUP BY 1 ORDER BY 1
     dimensions: [region]
     dim_sql: >
       SELECT {dim} AS member,
-             100.0 * SUM(conversions)::DOUBLE / NULLIF(SUM(sessions),0) AS value
+             100.0 * SUM(conversions)::DOUBLE PRECISION / NULLIF(SUM(sessions),0) AS value
       FROM marketing_weekly
       WHERE date_trunc('month', CAST(week_start AS DATE)) = DATE '{period}' {where}
       GROUP BY 1

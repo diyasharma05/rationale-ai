@@ -40,6 +40,10 @@ def render(ctx):
                "with known causes planted in it. That is deliberate: it is the only "
                "reason the evaluation panel can quote a precision and a recall at "
                "all. Real client data arrives without an answer key.")
+    info = db.backend_info()
+    engine_label = {"duckdb": "DuckDB", "postgresql": "PostgreSQL"}.get(info["backend"], info["backend"])
+    st.caption(f"Analytics engine: **{engine_label}** · `{info['detail']}` · the same "
+               "contract SQL runs on DuckDB or PostgreSQL; `RATIONALE_DB` selects which.")
 
     # ------------------------------------------------------------- the chain
     section_label("The chain behind one KPI")
@@ -53,7 +57,7 @@ def render(ctx):
             "<div style='font-family:monospace;font-size:0.86rem;line-height:2.0;"
             f"color:{C['ink']}'>"
             f"<b>{lin['system']}</b><br>"
-            f"&nbsp;&nbsp;&#8595; loaded into DuckDB as <code>{lin['source']}</code><br>"
+            f"&nbsp;&nbsp;&#8595; loaded into {engine_label} as <code>{lin['source']}</code><br>"
             "&nbsp;&nbsp;&#8595; governed SQL from the semantic contract<br>"
             f"&nbsp;&nbsp;&#8595; row filter for <b>{role_id}</b><br>"
             f"&nbsp;&nbsp;&#8595; anomaly test vs |z| &ge; "
