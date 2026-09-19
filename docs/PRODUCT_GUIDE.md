@@ -421,9 +421,10 @@ DELETE are refused.
 engine are portable, and that the shared state has a transactional home, which
 is what horizontal scaling needs. It does not make PostgreSQL the analytics
 engine for a client: the scale answer for the numbers is the client's
-warehouse (Section 25.2), and on one laptop PostgreSQL is slower than the
-in-process engine because an investigation issues about thirty small queries
-and each is a network round trip (Section 23).
+warehouse (Section 25.2), and on one laptop the first click of a session is
+slower on PostgreSQL because an investigation's twenty-five or so small queries
+each re-aggregate the source rows over a network hop; after that the result
+caches mean neither engine is asked anything (Section 23).
 
 ### 9.2 The semantic contract
 
@@ -971,7 +972,7 @@ malformed record is skipped, never allowed to break every investigation.
 | Layer | Mechanism | What | Why here |
 |---|---|---|---|
 | Storage | Materialised DuckDB tables | The four sources, typed | Removes re-parse for every consumer, including pytest and the API |
-| Engine | `functools.lru_cache` | Contract, roles, source freshness, source stats (role-scoped), FDR family (role- and period-scoped), replay frames (role-scoped) | No Streamlit dependency, so identical behaviour in tests, `eval.py` and the API |
+| Engine | `functools.lru_cache` | Contract, roles, source freshness, source stats (role-scoped), FDR family (role- and period-scoped), replay frames (role-scoped), and **every KPI series, driver metric, breakdown and the daily revenue frame (all role-scoped, returned as copies)**. The tables are a process-lifetime snapshot on either backend, so caching results changes nothing about freshness; it removes repeat questions, and on PostgreSQL each repeat was a 40 ms full-table aggregate | No Streamlit dependency, so identical behaviour in tests, `eval.py` and the API |
 | Engine (CPU) | Content-hash **disk** cache | The IsolationForest verdict | Survives a process restart, which is exactly what a demo laptop needs. Fingerprint is an order-insensitive hash of the RBAC-filtered daily frame plus the period plus a model-version string, so it invalidates when the data, the role's visibility, or the model parameters change |
 | View | `@st.cache_resource` | The LLM client, the metrics server | Unserialisable process singletons |
 | Session | `st.session_state` | Investigation results | `investigate()` has side effects (it appends to the ledger and mints an id), so it is **never** cached process-wide: that would hand one user another's investigation |
@@ -1113,25 +1114,32 @@ broken engine fails the build rather than the demo.
 | Dashboard scan | ~930 ms per widget interaction | ~250 ms budget, met |
 | Throughput, one process | not thread-safe | ~8–9 requests/s; p50 243 ms at N = 1 rising to 1.7 s at N = 16; **zero wrong answers at every level** |
 
-**The two engines, same laptop, same session** (2026-09-19, with Docker Desktop
-and the PostgreSQL server also running, so absolute numbers sit below the
-earlier measurement above; the ratio is the reading):
+**The two engines, same laptop, same session** (2026-09-19; cold means every
+engine result cache cleared first, which is what the first click of a session
+pays):
 
 | | DuckDB | PostgreSQL |
 |---|---|---|
-| KPI series query, median | 12 ms | 66 ms |
-| Portfolio scan, median | 64 ms | 194 ms |
-| Investigation p50 at N = 1 | 382 ms | 538 ms |
-| Investigation p50 at N = 16 | 3.7 s | 4.0 s |
-| Throughput at N = 16 | 4.0 req/s | 3.9 req/s |
+| KPI series query, cold | 6–12 ms | 40–45 ms |
+| Portfolio scan, cold | 33–40 ms | 96–106 ms |
+| Investigation, first click of a session (cold) | ~120 ms | ~0.4–0.6 s |
+| Investigation, every click after (warm; no SQL runs) | ~45 ms | ~45 ms |
+| Investigation p50 at N = 1 | 100 ms | 171 ms |
+| Investigation p50 at N = 16 | 1.8 s | 1.7 s |
+| Throughput at N = 16 | 8.1 req/s | 8.1 req/s |
 | Wrong answers under contention | 0 | 0 |
-| `eval.py`, median per case | 7.6 ms | 48 ms |
+| `eval.py`, median per case | 1 ms | 1 ms |
 
-PostgreSQL is three to five times slower per query because each of an
-investigation's roughly thirty small queries is a network round trip, where
-DuckDB is a function call in the same process. At sixteen concurrent
-investigations the two converge, because the Python process, not the database,
-is the bottleneck there. Zero wrong answers on either.
+PostgreSQL is three to five times slower per query: each of an investigation's
+roughly twenty-five small queries re-aggregates 85k rows row by row and crosses
+a network hop, where DuckDB is a vectorised function call in the same process.
+That cost is paid once. The engine keeps role-keyed result caches for every
+KPI series, breakdown and daily frame (Section 18.2), so after the first click
+of a session an investigation issues no SQL at all and the two engines are
+indistinguishable. Under sixteen concurrent investigations both deliver the
+same throughput, because the Python process, not the database, is the
+bottleneck there. Zero wrong answers on either. The benchmark reports cold and
+warm figures separately so the cache cannot hide the engine underneath it.
 
 The single-process curve saturates at modest concurrency (Python GIL; DuckDB
 releases it during query execution). That is the right result to present: the

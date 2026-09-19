@@ -596,25 +596,37 @@ container: every KPI series for every role equal to a relative tolerance of
 six July verdicts identical in outcome, confidence to three decimals and
 rank-1 explanation; the 36-case evaluation identical case by case. Every page
 renders for every role; `/healthz` names the engine and the store in use.
-Speed, same laptop, same session (Docker Desktop and the PostgreSQL server
-were also running, so absolute figures sit below D21's; the ratio is the
-reading):
+Speed, same laptop, same session (cold means every engine result cache was
+cleared first, which is what the first click of a session pays):
 
 | | DuckDB | PostgreSQL |
 |---|---|---|
-| KPI series query, median | 12 ms | 66 ms |
-| Portfolio scan, median | 64 ms | 194 ms |
-| Investigation p50 at N = 1 | 382 ms | 538 ms |
-| Investigation p50 at N = 16 | 3.7 s | 4.0 s |
-| Throughput at N = 16 | 4.0 req/s | 3.9 req/s |
+| KPI series query, cold | 6–12 ms | 40–45 ms |
+| Portfolio scan, cold | 33–40 ms | 96–106 ms |
+| Investigation, first click of a session (cold) | ~120 ms | ~0.4–0.6 s |
+| Investigation, every click after (warm; no SQL runs) | ~45 ms | ~45 ms |
+| Investigation p50 at N = 1 | 100 ms | 171 ms |
+| Investigation p50 at N = 16 | 1.8 s | 1.7 s |
+| Throughput at N = 16 | 8.1 req/s | 8.1 req/s |
 | Wrong answers under contention | 0 | 0 |
-| `eval.py`, median per case | 7.6 ms | 48 ms |
+| `eval.py`, median per case | 1 ms | 1 ms |
 
-PostgreSQL is three to five times slower per query because each of an
-investigation's roughly thirty small queries is a network round trip. At
-sixteen concurrent investigations the two converge, because the Python
-process, not the database, is the bottleneck there. Zero wrong answers on
-either.
+PostgreSQL is three to five times slower per query: each of an investigation's
+roughly twenty-five small queries re-aggregates 85k rows row by row and crosses
+a network hop. The first version of this decision reported that cost on every
+click. Measuring where the time went showed the engine asking the same
+questions repeatedly (the fulfilment-SLA series three times per revenue
+investigation; every series once for the scan and again for the verdict), so
+`engine/db.py` now keeps role-keyed result caches for every series, breakdown
+and daily frame, returned as copies and cleared whenever the backend changes.
+The tables are a process-lifetime snapshot on either engine, so nothing about
+freshness changed. After the first click of a session an investigation issues
+no SQL at all, the two engines are indistinguishable, and at sixteen concurrent
+investigations both deliver the same throughput. The benchmark reports cold
+and warm separately so the cache cannot hide the engine. Zero wrong answers on
+either. Indexing was tried and rejected: the contract's `date_trunc` predicate
+resolves to a non-immutable form in PostgreSQL, so an expression index would
+have meant changing the contract SQL for one engine's benefit.
 
 **Judge asks:** *"So is it DuckDB or PostgreSQL?"*
 **Answer:** Whichever you point it at, and the verdicts do not change. That is

@@ -134,7 +134,10 @@ class _Postgres:
             if df[c].dtype == object:
                 nonnull = df[c].dropna()
                 if len(nonnull) and isinstance(nonnull.iloc[0], (_dt.date, _dt.datetime)):
-                    df[c] = pd.to_datetime(df[c])
+                    # microsecond unit to match DuckDB's fetchdf() exactly, so the
+                    # two engines produce byte-identical frames and share one
+                    # content-hashed ML cache entry instead of one each
+                    df[c] = pd.to_datetime(df[c]).astype("datetime64[us]")
         return df
 
     def describe(self) -> str:
@@ -170,7 +173,8 @@ def set_backend(dsn: str = ""):
 
 
 def clear_caches():
-    for fn in (source_freshness, source_stats, _account_names):
+    for fn in (source_freshness, source_stats, _account_names,
+               _kpi_series, _metric_series, _dim_breakdown, _revenue_daily):
         fn.cache_clear()
     try:                                   # derived caches in sibling modules
         from . import screening, stream
@@ -241,15 +245,29 @@ def kpi_sql(kpi_id: str, role_id: str) -> str:
     return " ".join(cfg["sql"].format(where=role_where(role_id)).split())
 
 
-def kpi_series(kpi_id: str, role_id: str) -> pd.DataFrame:
+# Result caches, keyed on role (the RBAC-in-every-cache-key rule; a test
+# reflects over every cached callable here and asserts it). The tables are a
+# process-lifetime snapshot on either backend -- DuckDB materialises the CSVs at
+# start-up, PostgreSQL is loaded by an operator -- so caching a query result
+# changes nothing about freshness. What it changes is how often the same
+# question is asked: one investigation reads the fulfilment-SLA series three
+# times (as a driver, and as the upstream of two other drivers), and a
+# portfolio scan plus an investigation read every series twice. On PostgreSQL
+# each of those is a ~40 ms full-table aggregate over a network round trip;
+# on DuckDB ~12 ms. Callers receive a copy, so nobody can mutate the cache.
+
+@lru_cache(maxsize=512)
+def _kpi_series(kpi_id: str, role_id: str) -> pd.DataFrame:
     cfg = load_contract()["kpis"][kpi_id]
-    sql = cfg["sql"].format(where=role_where(role_id))
-    return _run(sql)
+    return _run(cfg["sql"].format(where=role_where(role_id)))
 
 
-def revenue_daily(role_id: str) -> pd.DataFrame:
-    """Daily-grain revenue by region — the training/scoring set for the
-    IsolationForest cross-check."""
+def kpi_series(kpi_id: str, role_id: str) -> pd.DataFrame:
+    return _kpi_series(kpi_id, role_id).copy()
+
+
+@lru_cache(maxsize=8)
+def _revenue_daily(role_id: str) -> pd.DataFrame:
     # ORDER BY 1, 2 (not just 1): ordering by date alone leaves same-day rows
     # in whatever order the parallel aggregation produced, so the frame
     # differed run to run. Harmless for the model, which re-sorts, but it
@@ -260,15 +278,30 @@ def revenue_daily(role_id: str) -> pd.DataFrame:
     return query(sql)
 
 
-def metric_series(metric_sql: str, role_id: str) -> pd.DataFrame:
+def revenue_daily(role_id: str) -> pd.DataFrame:
+    """Daily-grain revenue by region — the training/scoring set for the
+    IsolationForest cross-check."""
+    return _revenue_daily(role_id).copy()
+
+
+@lru_cache(maxsize=512)
+def _metric_series(metric_sql: str, role_id: str) -> pd.DataFrame:
     return _run(metric_sql.format(where=role_where(role_id)))
+
+
+def metric_series(metric_sql: str, role_id: str) -> pd.DataFrame:
+    return _metric_series(metric_sql, role_id).copy()
+
+
+@lru_cache(maxsize=2048)
+def _dim_breakdown(kpi_id: str, dim: str, period: str, role_id: str) -> pd.DataFrame:
+    cfg = load_contract()["kpis"][kpi_id]
+    return query(cfg["dim_sql"].format(dim=dim, period=f"{period}-01", where=role_where(role_id)))
 
 
 def dim_breakdown(kpi_id: str, dim: str, period: str, role_id: str) -> pd.DataFrame:
     """period: 'YYYY-MM' -> queries that month."""
-    cfg = load_contract()["kpis"][kpi_id]
-    sql = cfg["dim_sql"].format(dim=dim, period=f"{period}-01", where=role_where(role_id))
-    return query(sql)
+    return _dim_breakdown(kpi_id, dim, period, role_id).copy()
 
 
 # ---------------- source freshness (reconciliation across systems) ----------------

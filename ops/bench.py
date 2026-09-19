@@ -39,13 +39,25 @@ ROLE = "analyst"
 BUDGET_MS = {"scan": 250, "investigate_warm": 1500, "investigate_p95": 4000}
 
 
-def _time(fn, n=5):
+def _time(fn, n=5, cold=False):
+    """cold=True clears every engine result cache before each run, so the
+    figure is what the first click of a session pays; warm is every click
+    after it. Both are reported: a cache must not be allowed to hide the
+    cost of the engine underneath it."""
     ts = []
     for _ in range(n):
+        if cold:
+            db.clear_caches()
         t0 = time.perf_counter()
         fn()
         ts.append((time.perf_counter() - t0) * 1000)
     return round(min(ts), 1), round(statistics.median(ts), 1)
+
+
+def _stage(fn, n=5, n_cold=3):
+    cold = _time(fn, n=n_cold, cold=True)
+    warm = _time(fn, n=n)
+    return {"cold_ms": cold[1], "min_ms": warm[0], "median_ms": warm[1]}
 
 
 def latency():
@@ -55,16 +67,17 @@ def latency():
     llm = LLMClient()
 
     stages = {}
-    stages["kpi_series"] = _time(lambda: db.kpi_series("revenue", ROLE))
-    stages["portfolio_scan"] = _time(lambda: [
+    stages["kpi_series"] = _stage(lambda: db.kpi_series("revenue", ROLE))
+    stages["portfolio_scan"] = _stage(lambda: [
         anomaly.analyze(db.kpi_series(k, ROLE), PERIOD, c["materiality"], c.get("min_history", 6))
         for k, c in db.allowed_kpis(ROLE).items()])
-    stages["fdr_family"] = _time(lambda: screening.family_qvalues(ROLE, PERIOD))
-    stages["contribution"] = _time(lambda: contribution.top_contributors("revenue", cfg, PERIOD, ROLE))
-    stages["drivers"] = _time(lambda: drivers.check_drivers(cfg, an["z"], PERIOD, ROLE, parent_series=series))
-    stages["retrieval"] = _time(lambda: retrieve.search(cfg, ["North-West"], [], ROLE, exclude_period=PERIOD))
-    stages["investigate"] = _time(lambda: pyramid.investigate("revenue", PERIOD, ROLE, llm), n=3)
-    return {k: {"min_ms": v[0], "median_ms": v[1]} for k, v in stages.items()}
+    stages["fdr_family"] = _stage(lambda: screening.family_qvalues(ROLE, PERIOD))
+    stages["contribution"] = _stage(lambda: contribution.top_contributors("revenue", cfg, PERIOD, ROLE))
+    stages["drivers"] = _stage(lambda: drivers.check_drivers(cfg, an["z"], PERIOD, ROLE, parent_series=series))
+    stages["retrieval"] = _stage(lambda: retrieve.search(cfg, ["North-West"], [], ROLE, exclude_period=PERIOD))
+    stages["investigate"] = _stage(lambda: pyramid.investigate("revenue", PERIOD, ROLE, llm), n=3, n_cold=2)
+    stages["_engine"] = db.backend_info()
+    return stages
 
 
 def concurrency(levels=(1, 2, 4, 8, 16), per_level=16):
@@ -122,9 +135,12 @@ def main():
     if args.json:
         print(json.dumps(report, indent=2))
     else:
-        print("\nPER-STAGE LATENCY (warm)")
+        print(f"\nENGINE: {report['latency']['_engine']['detail']}")
+        print("\nPER-STAGE LATENCY        cold (first click)   warm (every click after)")
         for stage, v in report["latency"].items():
-            print(f"  {stage:18s} {v['median_ms']:8.1f} ms")
+            if stage.startswith("_"):
+                continue
+            print(f"  {stage:18s} {v['cold_ms']:12.1f} ms   {v['median_ms']:12.1f} ms")
         if "concurrency" in report:
             print("\nCONCURRENCY (same engine, shared DuckDB handle)")
             print(f"  {'N':>3s} {'p50 ms':>9s} {'p95 ms':>9s} {'req/s':>8s}  wrong")
