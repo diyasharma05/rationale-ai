@@ -35,29 +35,38 @@ class _Noop:
         pass
 
 
+def _metric(cls, name, doc, *args, **kwargs):
+    """Register once per process. Streamlit's hot reload re-imports this module
+    on a file change; a second registration of the same name raises
+    DuplicateTimeseries, so an existing collector is reused instead."""
+    from prometheus_client import REGISTRY
+    existing = REGISTRY._names_to_collectors.get(name) or         REGISTRY._names_to_collectors.get(name.removesuffix("_total"))
+    return existing if existing is not None else cls(name, doc, *args, **kwargs)
+
+
 if ENABLED:
-    INVESTIGATIONS = Counter("rationale_investigations_total",
+    INVESTIGATIONS = _metric(Counter, "rationale_investigations_total",
                              "Investigations completed", ["kpi", "outcome", "role"])
-    INV_SECONDS = Histogram("rationale_investigation_duration_seconds",
+    INV_SECONDS = _metric(Histogram, "rationale_investigation_duration_seconds",
                             "End-to-end investigation wall time",
                             buckets=(0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 40, 60))
-    CONFIDENCE = Histogram("rationale_confidence_score",
+    CONFIDENCE = _metric(Histogram, "rationale_confidence_score",
                            "Confidence score at the gates",
                            buckets=(0.2, 0.35, 0.5, 0.6, 0.7, 0.75, 0.85, 0.95, 1.0))
-    DETECTOR = Counter("rationale_detector_flags_total",
+    DETECTOR = _metric(Counter, "rationale_detector_flags_total",
                        "Detector votes", ["detector", "flag"])
-    GATES = Counter("rationale_gate_outcomes_total", "Gate outcomes", ["gate", "result"])
-    LLM_CALLS = Counter("rationale_llm_calls_total", "LLM calls", ["model", "mode", "task"])
-    LLM_TOKENS = Counter("rationale_llm_tokens_total", "LLM tokens",
+    GATES = _metric(Counter, "rationale_gate_outcomes_total", "Gate outcomes", ["gate", "result"])
+    LLM_CALLS = _metric(Counter, "rationale_llm_calls_total", "LLM calls", ["model", "mode", "task"])
+    LLM_TOKENS = _metric(Counter, "rationale_llm_tokens_total", "LLM tokens",
                          ["model", "direction"])
-    LLM_COST = Counter("rationale_llm_cost_usd_total", "Estimated LLM spend (USD)", ["model"])
-    LLM_SECONDS = Histogram("rationale_llm_latency_seconds", "LLM call latency", ["model"],
+    LLM_COST = _metric(Counter, "rationale_llm_cost_usd_total", "Estimated LLM spend (USD)", ["model"])
+    LLM_SECONDS = _metric(Histogram, "rationale_llm_latency_seconds", "LLM call latency", ["model"],
                             buckets=(0.05, 0.25, 1, 2.5, 5, 10, 20, 40))
-    OPS = Counter("rationale_engine_operations_total",
+    OPS = _metric(Counter, "rationale_engine_operations_total",
                   "Deterministic work performed", ["kind"])   # sql / stats / ml / retrieval
-    KPIS_FLAGGED = Gauge("rationale_kpis_flagged", "KPIs outside their normal range",
+    KPIS_FLAGGED = _metric(Gauge, "rationale_kpis_flagged", "KPIs outside their normal range",
                          ["period", "role"])
-    KPIS_SCANNED = Gauge("rationale_kpis_scanned", "KPIs scanned", ["period", "role"])
+    KPIS_SCANNED = _metric(Gauge, "rationale_kpis_scanned", "KPIs scanned", ["period", "role"])
 else:
     INVESTIGATIONS = INV_SECONDS = CONFIDENCE = DETECTOR = GATES = _Noop()
     LLM_CALLS = LLM_TOKENS = LLM_COST = LLM_SECONDS = OPS = _Noop()

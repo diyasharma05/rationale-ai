@@ -267,7 +267,11 @@ def clear_caches():
 
 def backend_info() -> dict:
     b = backend()
-    return {"backend": b.name, "detail": b.describe()}
+    label = {"duckdb": "DuckDB, in-process", "postgresql": "PostgreSQL"}.get(b.name)
+    if label is None:                                    # a SQLAlchemy warehouse: name its dialect
+        label = {"snowflake": "Snowflake", "databricks": "Databricks SQL", "mssql": "Microsoft Fabric / SQL Server",
+                 "postgresql": "PostgreSQL", "sqlite": "SQLite"}.get(getattr(b, "dialect", ""), getattr(b, "dialect", b.name).title())
+    return {"backend": b.name, "label": label, "detail": b.describe()}
 
 
 def source_provenance() -> list:

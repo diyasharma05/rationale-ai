@@ -54,7 +54,7 @@ def render(ctx):
                "reason the evaluation panel can quote a precision and a recall at "
                "all. Real client data arrives without an answer key.")
     info = db.backend_info()
-    engine_label = {"duckdb": "DuckDB", "postgresql": "PostgreSQL"}.get(info["backend"], info["backend"])
+    engine_label = info.get("label", info["backend"])
     st.caption(f"Analytics engine: **{engine_label}** · `{info['detail']}` · the same "
                "contract SQL runs on DuckDB or PostgreSQL; `RATIONALE_DB` selects which.")
 

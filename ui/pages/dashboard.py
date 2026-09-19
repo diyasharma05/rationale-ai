@@ -64,8 +64,9 @@ def render(ctx):
     else:
         st.caption(f"All KPIs inside their normal range in {month_name(PERIOD)}. "
                    f"Signed in as **{roles[role_id]['label']}**.")
+    _engine = db.backend_info()["label"]        # which engine computed these numbers
     st.caption(f"⏱ computed live just now : {len(kpi_ids)} KPIs scanned across "
-               f"{len(systems)} systems in **{_scan_ms:,.0f} ms**")
+               f"{len(systems)} systems in **{_scan_ms:,.0f} ms** · engine: **{_engine}**")
 
     # --- overview stat row (Grafana-style top panels) ---
     section_label("This month at a glance")
