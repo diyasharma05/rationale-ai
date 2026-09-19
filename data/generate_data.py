@@ -164,7 +164,8 @@ def gen_crm(df_orders):
             rows.append((f"EVT-{eid}", (p.to_timestamp() + pd.offsets.MonthEnd(0)).date().isoformat(),
                          region, "nps", "", round(float(v), 1), "monthly NPS survey"))
     pd.DataFrame(rows, columns=["event_id", "event_date", "region", "event_type", "account_name", "value", "note"]) \
-        .to_csv(os.path.join(HERE, "crm_events.csv"), index=False)
+        .to_json(os.path.join(HERE, "crm_events.jsonl"), orient="records", lines=True,
+                 force_ascii=False)   # RelateCRM exports events as JSON lines, one object per event
 
 
 def gen_marketing():

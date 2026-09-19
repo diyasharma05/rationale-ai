@@ -10,7 +10,7 @@ work between them.
 
 | Rubric theme | Standing | Evidence | Gap |
 |---|---|---|---|
-| **Understand the problem before building** | Grounded, not validated | `docs/PROBLEM_STATEMENT.md`: four stakeholders, published evidence, explicit assumptions | No real user has touched the system. We cannot fix that before the finale; we can be the team that says so first and has a pilot plan for it. |
+| **Understand the problem before building** | Grounded, not validated | `docs/PROBLEM_STATEMENT.md`: four stakeholders, published evidence, explicit assumptions; `docs/REQUIREMENTS_MAP.md`: the brief's seven pointers mapped to code, tests and gaps | No real user has touched the system. We cannot fix that before the finale; we can be the team that says so first and has a pilot plan for it. |
 | **Let human imagination lead** | Thesis is ours; hardening must be owned | Round-2 architecture (deterministic-first, contract, abstention) is original. Round-3 decisions are documented with alternatives in `docs/DESIGN_DECISIONS.md` | Every Round-3 decision must be understood well enough to defend *or overrule*. Mock Q&A is the test. |
 | **Think like an enterprise builder** | Strongest area | 198 tests, CI gates, offline-safe, RBAC in SQL and at the API, audit trail, human-approved dispatch, measured concurrency, provenance page, pilot and Day-2 plan | Business case is a model, not a number, because there is no client. Say so. |
 
@@ -37,7 +37,7 @@ order of the evaluators' three points.
 | 1 | **The problem, from four chairs** | 1 | Analyst: the "why" is a person-day. Ops: every metric alerts so none do. Exec: 77% rely on dashboards, 67% don't fully trust them. Platform: LLM-over-warehouse scores 21% on real schemas. |
 | 2 | **What we are solving, precisely** | 1 | Detect with a controlled error rate → explain with evidence → decide whether to conclude → route to the named owner → learn from the verdict. |
 | 3 | **Our thesis** | 2 | The model never computes a number and never makes a routing decision. It writes sentences. Everything else is SQL, statistics, and a governed contract. |
-| 4 | **The semantic contract** | 2, 3 | One artifact defines the KPI, its thresholds, its drivers, its levers, their owners and approvers, and who may see it. The dbt Labs result (90 → 98%) is independent evidence this is the right layer. |
+| 4 | **The semantic contract** | 2, 3 | One artifact defines the KPI, its thresholds, its drivers, its levers, their owners and approvers, who may see it, and where its sources live: a live PostgreSQL order system, CSV extracts and a JSON event feed, reconciled at ingestion with provenance on screen. The dbt Labs result (90 → 98%) is independent evidence this is the right layer. |
 | 5 | **Live demo** (5 min) | all | Per `DEMO_SCRIPT.md`. Open with the honest line about synthetic data. |
 | 6 | **Why we trust the numbers** | 3 | Precision 100% / recall 100% across 36 cases and five control months; FDR-controlled; confidence cannot reach 1.0; the harness is mutation-tested. Show the gate-separation margins including the narrow one. |
 | 7 | **Why the flagship case is TENTATIVE** | 2, 3 | Because it should be. Revenue's own signal is marginal (p ≈ 0.07); the drivers carry it. An engine that called it ESTABLISHED at 0.71 is the one to distrust. |
@@ -70,6 +70,8 @@ that you did not say them.
 | Question | Answer lives in |
 |---|---|
 | Why not an LLM over the warehouse? | D1; slide 1 (Spider 2.0: 21%); the method strip |
+| Where is requirement N of the brief? | `docs/REQUIREMENTS_MAP.md`, one section per pointer with the tests that pin it |
+| Are the sources really heterogeneous? | D29; the Lineage page's provenance table; `GET /sources` |
 | Who maintains the contract? | D2; pilot phase 0 |
 | Is confidence a probability? | D12; slide 6 |
 | Why 0.10? | D10; slide 6 |

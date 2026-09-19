@@ -84,12 +84,16 @@ machine produces byte-identical data. **85,222 orders** over 13 months (Aug 2025
 2026), 5 regions, 3 segments (consumer/SMB/enterprise), 40 named enterprise accounts.
 The dataset (~5 MB) ships with the repo so `clone → run` has no build step.
 
-| Table | Grain | Refresh (simulated) | Contents |
-|---|---|---|---|
-| `sales_orders` | transaction | daily 02:00 | order id, date, region, segment, category, account, value |
-| `ops_fulfilment` | daily × region | daily 04:00 | shipments, avg delivery days, SLA breaches |
-| `crm_events` | event | weekly (Mon) | complaints (row each), churn events, monthly NPS |
-| `marketing_weekly` | weekly × region | weekly (Mon) | spend, sessions, conversions |
+| Table | System | Kind | Grain | Refresh (simulated) | Contents |
+|---|---|---|---|---|---|
+| `sales_orders` | OrderDB (OMS) | **PostgreSQL, live** (`RATIONALE_OMS_DSN`), falling back to the nightly extract `data/sales_orders.csv` | transaction | daily 02:00 | order id, date, region, segment, category, account, value |
+| `ops_fulfilment` | LogiTrack (WMS) | **CSV** extract | daily × region | daily 04:00 | shipments, avg delivery days, SLA breaches |
+| `crm_events` | RelateCRM | **JSON lines** event export | event | weekly (Mon) | complaints (one object each), churn events, monthly NPS |
+| `marketing_weekly` | RelateCRM marketing | **CSV** extract | weekly × region | weekly (Mon) | spend, sessions, conversions |
+
+`engine/sources.py` ingests each kind into one governed DuckDB namespace at start-up and
+records the provenance (live or extract, rows, as-of, fetch time) shown on the Lineage
+page and at `GET /sources`.
 
 **The planted July-2026 incident** (exact parameters):
 

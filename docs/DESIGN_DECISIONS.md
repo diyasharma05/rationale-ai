@@ -639,6 +639,60 @@ numbers at scale.
 own a warehouse. The engine reads a pre-aggregated mart; the thing that must be
 shared across replicas is the ledger, and that is exactly what moved.
 
+### D29. Heterogeneous sources, reconciled at ingestion, with provenance on screen. [R3] **[team call]**
+
+Requirement 2 of the brief is "reconciles data and business context across
+heterogeneous sources". Until this decision the contract *declared* three
+source systems with different grains and refresh cadences, and every one of
+them was a CSV in the same folder. A judge who opened `data/` saw one format.
+The team's reading of the brief was that the sources should genuinely be
+heterogeneous, and fetched, not just described.
+
+**What changed.** The contract's `sources:` block now carries a `kind` and a
+`location`, and `engine/sources.py` ingests each kind into one governed
+namespace of typed tables at start-up:
+
+| System | Kind | How it arrives |
+|---|---|---|
+| OrderDB (OMS) | **PostgreSQL**, live | Fetched over the wire with `COPY TO STDOUT` at start-up from `RATIONALE_OMS_DSN`; falls back to the last nightly extract, `data/sales_orders.csv`, when unreachable or unconfigured |
+| LogiTrack (WMS) | **CSV** extract | The daily file the WMS drops |
+| RelateCRM events | **JSON lines** | One object per event, the way event systems export |
+| RelateCRM marketing | **CSV** extract | The weekly file |
+
+Plus the unstructured documents, the JSON market-event feed and the decision
+ledger, which were already three further kinds of context.
+
+**Reconciliation is visible, not asserted.** Every load records its
+provenance: system, kind, redacted location, live or extract, rows, latest
+record date, fetch time and how long the fetch took. The Lineage page shows the
+table and a one-line summary ("3 systems in 3 formats: 1 fetched live, 0 from a
+last extract, 3 from extract files"); `GET /sources` returns the same record.
+When the OMS cannot be reached the page says so and names the extract it used.
+Nothing is substituted silently.
+
+**Why fall back at all.** The demo runs offline on a laptop; a live database
+dependency with no fallback is a new way to fail on stage. The fallback is also
+the honest shape of an ELT pipeline: the nightly extract *is* what most
+analytics read. The difference is that this engine says which one it read.
+
+**Why PostgreSQL for the OMS and not a REST API.** The instance already exists
+(D28), a transactional database is what an order system is, and fetching a
+table over the wire is a real cross-system hop. A REST connector would be a
+second kind for the same demonstration.
+
+**Warehouse mode is unchanged.** With `RATIONALE_DB` set, the whole engine runs
+on PostgreSQL and `ops/pg_local load` reads every declared source through the
+same loaders (from their extract files) into the warehouse, so the two engines
+still hold identically typed tables and the parity suite still passes.
+
+**Judge asks:** *"Are these real integrations or files with different extensions?"*
+**Answer:** One is a live database fetched over the wire at start-up, and the
+page tells you whether it was live or the extract, with the fetch time. The
+others are the extract formats those systems actually produce. What makes it
+reconciliation rather than loading is the contract: it declares the grain and
+cadence of each, and the KPI SQL joins across them, CRM events over OMS orders,
+without knowing where either side lives.
+
 ## Part V — The honest opening
 
 Before any evaluator asks: *the data is synthetic, generated with known causes

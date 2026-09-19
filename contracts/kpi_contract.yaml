@@ -7,21 +7,36 @@
 # `{where}` is the row-level-security injection point (resolved per role).
 # ---------------------------------------------------------------------------
 
+# Three systems, three formats. `kind` and `location` are what engine/sources.py
+# reads to ingest each one into a single governed namespace at start-up; the
+# provenance of that ingestion (live or extract, rows, as-of, fetched-at) is
+# shown on the Lineage page and at GET /sources. A `postgres` source is fetched
+# over the wire and falls back to its last extract, visibly, when unreachable.
 sources:
   sales_orders:
     system: "OrderDB (OMS)"
+    kind: postgres                        # the transactional order database, live
+    location: "env:RATIONALE_OMS_DSN"     # e.g. postgresql://rationale_app:rationale@localhost:5433/rationale
+    table: sales_orders
+    fallback: "data/sales_orders.csv"     # the last nightly extract
     grain: "transaction"
     refresh: "daily 02:00 IST"
   ops_fulfilment:
     system: "LogiTrack (WMS)"
+    kind: csv                             # daily extract dropped by the WMS
+    location: "data/ops_fulfilment.csv"
     grain: "daily x region"
     refresh: "daily 04:00 IST"
   crm_events:
     system: "RelateCRM (CRM + Marketing suite)"
+    kind: jsonl                           # event export, one JSON object per event
+    location: "data/crm_events.jsonl"
     grain: "event"
     refresh: "weekly (Mondays)"
   marketing_weekly:
     system: "RelateCRM (CRM + Marketing suite)"
+    kind: csv                             # weekly extract from the marketing suite
+    location: "data/marketing_weekly.csv"
     grain: "weekly x region"
     refresh: "weekly (Mondays)"
 

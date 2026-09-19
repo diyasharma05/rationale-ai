@@ -66,6 +66,14 @@ not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on
 one process with zero wrong answers under contention, which is the honest
 "add replicas past here" answer.
 
+**Its sources are heterogeneous, and it says which it read.** The order system is a
+live PostgreSQL database fetched over the wire at start-up (falling back, visibly, to
+the last nightly extract when unreachable); the warehouse and marketing systems drop
+CSV extracts; the CRM exports events as JSON lines. `engine/sources.py` reconciles them
+into one governed namespace and records the provenance of every table, which the
+Lineage page and `GET /sources` show. `docs/REQUIREMENTS_MAP.md` walks the brief's
+seven pointers one by one.
+
 **It runs on PostgreSQL too.** One variable, `RATIONALE_DB`, points the engine at a
 PostgreSQL database instead of the in-process DuckDB: the same contract SQL, the same
 RBAC clause, and the ledger and outbox as one shared append-only table with an
@@ -211,9 +219,10 @@ the only script permitted to write them, so a live session can never overwrite t
 ```bash
 python -m ops.pg_local fetch     # portable PostgreSQL 16 binaries (~320 MB, once, to ~/pgsql16)
 python -m ops.pg_local init      # start it as a user process on :5433, load the CSVs, create roles
-python -m ops.pg_local env       # prints the RATIONALE_DB line for your shell
-# then, in that shell:
-streamlit run app.py             # same app; the Lineage page and /healthz now say PostgreSQL
+python -m ops.pg_local env       # prints two options for your shell:
+#   RATIONALE_DB=...      run the whole engine on PostgreSQL (the Lineage page and /healthz say so)
+#   RATIONALE_OMS_DSN=... keep DuckDB, but fetch the order system LIVE from PostgreSQL at start-up
+streamlit run app.py             # same app either way; the Lineage page shows what was read from where
 python eval.py                   # same 36 verdicts
 python -m ops.pg_local stop      # when done
 ```
@@ -319,7 +328,8 @@ llm/
   prompts.py                 system prompts and builders
   fallback.py                deterministic templates (no key, no fixture)
   fixtures/                  committed offline responses
-data/generate_data.py        seeded generator + planted scenarios
+data/generate_data.py        seeded generator + planted scenarios (CSV extracts + a JSON event feed)
+engine/sources.py            heterogeneous source loaders (PostgreSQL live / CSV / JSON lines) + provenance
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
 store.py                     event streams: JSONL by default, PostgreSQL via RATIONALE_DB
@@ -327,6 +337,7 @@ tests/                       198 tests: unit, RBAC, integration, UI snapshots, P
 ops/bench.py                 latency + concurrency benchmark
 ops/pg_local.py              run the same contract on PostgreSQL without Docker
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)
+docs/REQUIREMENTS_MAP.md     the brief's seven pointers -> code, tests, gaps
 DEMO_SCRIPT.md               judge walkthrough
 docs/PRODUCT_GUIDE.md        the complete product + technology guide (start here)
 ```

@@ -8,7 +8,7 @@ what, how it is secured, tested, deployed, and where its limits are. It is
 written to be read end to end by someone who has never seen the code, and to be
 checkable line by line by someone who has. Every constant, threshold and
 measurement quoted here is taken from the code and the evaluation output on the
-`round3-hardening` branch as of 2026-09-19 (198 tests passing; 11 of them run
+`round3-hardening` branch as of 2026-09-19 (206 tests passing; 12 of them run
 against a real PostgreSQL).
 
 Companion documents, each narrower than this one:
@@ -21,6 +21,7 @@ Companion documents, each narrower than this one:
 | `docs/DESIGN_DECISIONS.md` | Twenty-seven design decisions (D1–D27), each with the alternative considered and the question a judge would ask |
 | `docs/PILOT_AND_OPERATIONS.md` | Pilot plan, value model, Day-2 operations |
 | `docs/FINALE_PLAN.md` | Deck outline, honest lines, Q&A map |
+| `docs/REQUIREMENTS_MAP.md` | The brief's seven pointers mapped to code, tests and gaps |
 | `DEMO_SCRIPT.md` | The eight-minute live demo, beat by beat |
 
 ---
@@ -211,12 +212,14 @@ enterprise accounts. Thirteen months of history, August 2025 to 25 August 2026.
 so every machine gets byte-identical files. The output ships with the repo, so
 there is no build step; the app regenerates it only if the CSVs are missing.
 
-| Table | Source system (simulated) | Grain | Refresh (declared) | Rows | Contents |
-|---|---|---|---|---|---|
-| `sales_orders` | OrderDB (OMS) | transaction | daily 02:00 IST | 85,222 | order id, date, region, segment, category, account, value |
-| `ops_fulfilment` | LogiTrack (WMS) | daily × region | daily 04:00 IST | 1,950 | shipments, average delivery days, SLA breaches |
-| `crm_events` | RelateCRM | event | weekly (Mondays) | 1,156 | complaints (one row each), churn events, NPS |
-| `marketing_weekly` | RelateCRM marketing | weekly × region | weekly (Mondays) | 280 | spend, sessions, conversions |
+| Table | Source system (simulated) | Kind | Grain | Refresh (declared) | Rows | Contents |
+|---|---|---|---|---|---|---|
+| `sales_orders` | OrderDB (OMS) | **PostgreSQL**, fetched live; nightly CSV extract as fallback | transaction | daily 02:00 IST | 85,222 | order id, date, region, segment, category, account, value |
+| `ops_fulfilment` | LogiTrack (WMS) | **CSV** extract | daily × region | daily 04:00 IST | 1,950 | shipments, average delivery days, SLA breaches |
+| `crm_events` | RelateCRM | **JSON lines** event export | event | weekly (Mondays) | 1,156 | complaints (one object each), churn events, NPS |
+| `marketing_weekly` | RelateCRM marketing | **CSV** extract | weekly × region | weekly (Mondays) | 280 | spend, sessions, conversions |
+
+Three systems, three formats. Section 9.1 describes how they are reconciled.
 
 Plus ten unstructured documents in `data/unstructured/` and three market events
 in `data/market_events.json`.
@@ -355,11 +358,31 @@ step, fitting five IsolationForests, is cached on a content hash of the data
 
 ## 9. Data layer: DuckDB, the semantic contract, and role-based security
 
-### 9.1 DuckDB over materialised tables
+### 9.1 Heterogeneous sources, one governed namespace
 
-`engine/db.py` is the only file that knows where the data lives. At first use it
-builds an in-memory DuckDB database and materialises each CSV as a **typed
-table**, casting the date column once:
+`engine/db.py` is the only file that knows where the data lives, and
+`engine/sources.py` is how it finds out. The contract's `sources:` block declares,
+for each system, a `kind` and a `location`:
+
+| Kind | Source | How it is ingested |
+|---|---|---|
+| `postgres` | OrderDB, the live order system | Fetched over the wire at start-up with `COPY TO STDOUT` from the database named by `RATIONALE_OMS_DSN` (about 270 ms for 85k rows on this laptop). If that is unset or unreachable, the last nightly extract is loaded instead and the provenance says so |
+| `csv` | The WMS daily file and the marketing weekly file | Read directly |
+| `jsonl` | The CRM event export, one JSON object per line | Read directly; DuckDB's JSON reader is built in and works offline |
+| `parquet` | Not used by the demo | Supported for a lakehouse drop |
+
+Every source lands as a **typed table** with its date column cast once, so the
+contract SQL joins across systems (complaint rate is CRM events over OMS orders)
+without knowing where either side came from. What it does know is recorded per
+table: system, kind, redacted location, live or extract, rows, latest record
+date, fetch time. The Lineage page shows that table with a summary line, and
+`GET /sources` returns it. A live source that cannot be reached is never
+substituted silently. The verdicts do not depend on the path: the golden case is
+TENTATIVE at 0.715 whether the order system was fetched live or read from its
+extract, because they hold the same nightly data.
+
+At first use DuckDB builds an in-memory database and materialises each source
+this way, for example:
 
 ```sql
 CREATE TABLE sales_orders AS
@@ -1014,6 +1037,7 @@ Streamlit is one client of the engine, not the system.
 | `GET /kpis?role_id=` | The KPIs this role may ask about, with owners and drivers | Domain RBAC; unknown role → 404 |
 | `GET /scan?role_id=&period=` | The portfolio sweep with multiplicity control applied | Domain RBAC |
 | `POST /investigate` `{kpi_id, period, role_id}` | The reasoning pyramid; returns outcome, confidence, headline, body, actions, ranked hypotheses, evidence ids, method mix, model-call count, wall time | Restricted KPI → **403**; period validated by schema |
+| `GET /sources` | Provenance per source: system, kind, live or extract, rows, as-of, fetch time | — |
 | `GET /metrics/summary` | Process telemetry summary | — |
 
 `tests/integration/test_api.py` asserts the API's answer matches the engine's,
@@ -1076,13 +1100,13 @@ accuracy falls below 1.0, and CI runs it on every push.
 
 ## 22. Tests, CI and the benchmark
 
-**198 tests**, where Round 2 had a smoke script that printed everything and
-asserted nothing. 187 run with no database at all; 11 need PostgreSQL and run
+**206 tests**, where Round 2 had a smoke script that printed everything and
+asserted nothing. 194 run with no database at all; 12 need PostgreSQL and run
 in CI against a service container.
 
 | Area | Files | Tests | What they pin |
 |---|---|---|---|
-| `tests/unit/` | anomaly, confidence, contribution, explore, intent, live_ingest, retrieve, screening, store, telemetry | 67 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL |
+| `tests/unit/` | anomaly, confidence, contribution, explore, intent, live_ingest, retrieve, screening, sources, store, telemetry | 75 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL; three systems in three formats land typed, the live order system is fetched over the wire in CI, and an unreachable source falls back visibly without leaking credentials |
 | `tests/rbac/` | rbac, cache_isolation | 16 | Row security is in the SQL; the restricted role sees strictly less revenue; hidden KPIs are hidden; masking reaches retrieved evidence, not just the screen; every cached path is role-keyed and a primed cache does not leak across roles, including the IsolationForest cache and the replay ticker |
 | `tests/integration/` | pyramid_paths, learning_loop, abstain_loop, dispatch, mcp_transport, api, backend_parity | 56 | The golden path is TENTATIVE with the right lead; the measurement artifact does not corroborate; the abstain, sparse and no-signal paths; the executive never sees a standardised score; a correction demotes and a confirmation promotes; a confirming answer changes the verdict and carries provenance, a ruling-out keeps the abstention; recipient and approval come from the contract; nothing sends without approval; the MCP flow posts through a real local server, discovers the right tool, and fails closed; the PostgreSQL parity suite of Section 9.1a, including the INSERT-only grant |
 | `tests/ui/` | test_app, test_snapshots | 36 | Headless `AppTest` runs of every page for every role; the ask box fires only on submit; the sales head cannot reach restricted KPIs; the ledger masks for the viewer; dark mode repaints the charts; and **21 rendered-text snapshots** (HTML stripped; latency, timestamps, ids and money normalised) that must be byte-identical after any refactor |
@@ -1176,6 +1200,7 @@ the demo is unchanged.
 | `RATIONALE_STORE` | `jsonl` keeps the event streams on disk while `RATIONALE_DB` supplies the numbers; a DSN sends them elsewhere |
 | `RATIONALE_PG_BIN`, `RATIONALE_PG_PORT` | Where `ops/pg_local.py` finds the PostgreSQL binaries, and the port it uses (default 5433) |
 | `RATIONALE_TEST_PG` | An owner DSN; enables the PostgreSQL store and parity tests |
+| `RATIONALE_OMS_DSN=postgresql://…` | Keep DuckDB as the engine but fetch the order system live from this database at start-up (Section 9.1). Unset: the nightly extract is used and the Lineage page says so |
 | `RATIONALE_METRICS=1` | Exposes Prometheus metrics on `:9108` (`RATIONALE_METRICS_PORT` to change) |
 | `RATIONALE_DISPATCH=mcp` | Selects the MCP transport instead of dry run |
 | `RATIONALE_MCP_COMMAND` | How to start the MCP server, e.g. `npx -y @modelcontextprotocol/server-slack` |
@@ -1264,6 +1289,7 @@ the full corpus, a stable baseline and the ledger).
 | The live ingestion lane on the Lineage page | **Real**: a separate process writes rows the app has never seen |
 | Dispatch | Routed and approved for real; **delivered as a dry run** by default; MCP delivery proven against a local server, not yet against a Slack workspace |
 | The PostgreSQL backend | **Real and optional.** One variable switches engine and ledger; every KPI series and all 36 evaluation cases are identical to DuckDB. Slower per query on a laptop, and not a substitute for a warehouse |
+| The sources | **Heterogeneous and reconciled.** The order system is a live PostgreSQL fetched at start-up when `RATIONALE_OMS_DSN` is set, otherwise its nightly extract, and the page says which; the WMS and marketing systems are CSV extracts; the CRM is a JSON event feed. The data inside them is synthetic |
 | The learning loop and abstain loop | **Real**: verdicts and answers change retrieval, ranking and the verdict, measurably |
 | Users | **None** outside the team have used it |
 
@@ -1325,23 +1351,23 @@ period whose source is behind its declared refresh.
 
 # Appendix A: Repository map with sizes
 
-Python, excluding data and snapshots. Approximately 9,200 lines in total.
+Python, excluding data and snapshots. Approximately 9,600 lines in total.
 
 | Area | Lines | Contents |
 |---|---|---|
-| `engine/` | 2,398 | 15 modules: pyramid, db, anomaly, screening, stats_ml, contribution, drivers, retrieve, confidence, economics, policy, dispatch, explore, stream, cache |
-| `ui/` | 2,090 | theme, context, common, 4 components, 8 pages |
-| `tests/` | 2,002 | 22 files, 198 tests |
+| `engine/` | 2,617 | 16 modules: pyramid, db, sources, anomaly, screening, stats_ml, contribution, drivers, retrieve, confidence, economics, policy, dispatch, explore, stream, cache |
+| `ui/` | 2,103 | theme, context, common, 4 components, 8 pages |
+| `tests/` | 2,105 | 23 files, 206 tests |
 | top level | 1,237 | `app.py` (192), `store.py`, `feedback.py`, `telemetry.py`, `metrics.py`, `eval.py`, `record_fixtures.py` |
 | `services/` | 462 | scan, intent, outbox, transports, live_ingest |
 | `llm/` | 340 | client, prompts, fallback; 22 fixtures |
-| `ops/` | 596 | bench, ingest, pg_local; Prometheus and Grafana provisioning; compose for the ops stack |
-| `api/` | 114 | the FastAPI service |
+| `ops/` | 628 | bench, ingest, pg_local; Prometheus and Grafana provisioning; compose for the ops stack |
+| `api/` | 121 | the FastAPI service |
 | `data/` | — | 4 CSVs (~4.9 MB), 10 documents, 3 market events, the generator, tracked eval results and ML cache |
 | governance | — | `contracts/kpi_contract.yaml`, `roles.yaml` |
 | docs | — | this guide, README, technical documentation, project report, demo and video scripts, and the five `docs/` pages |
 
-Git: 37 commits since 2026-08-30; 16 of them on `round3-hardening`.
+Git: 39 commits since 2026-08-30; 18 of them on `round3-hardening`.
 
 # Appendix B: Every tunable constant, in one table
 
@@ -1414,3 +1440,4 @@ considered and the judge's likely question, in `docs/DESIGN_DECISIONS.md`.
 | Is this an agent? | D26 |
 | The abstain loop | D27 |
 | A second engine (PostgreSQL) behind the same contract; the ledger's shared home | D28 |
+| Heterogeneous sources reconciled at ingestion, with provenance | D29 |

@@ -26,6 +26,7 @@ os.environ["RATIONALE_STATE"] = str(_STATE)
 # The default suite always runs on DuckDB + JSONL. PostgreSQL is opt-in through
 # RATIONALE_TEST_PG (see tests/integration/test_backend_parity.py).
 os.environ.pop("RATIONALE_DB", None)
+os.environ.pop("RATIONALE_OMS_DSN", None)   # the OMS is read from its extract unless a test says otherwise
 
 import pytest  # noqa: E402
 

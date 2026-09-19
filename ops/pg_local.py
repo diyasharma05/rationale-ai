@@ -2,8 +2,9 @@
 
 PostgreSQL ships as a plain zip of binaries. This script runs it as an ordinary
 user process with its data directory inside the repo (data/pg/, gitignored),
-loads the four CSV sources into it with COPY, creates the append-only events
-table the ledger and outbox use, and provisions two roles:
+loads the four declared sources into it with COPY (read through the same
+engine/sources.py loaders the app uses, from their extract files), creates the
+append-only events table the ledger and outbox use, and provisions two roles:
 
     rationale_admin   owner; runs this script
     rationale_app     what the app connects as: SELECT everywhere, INSERT on
@@ -12,6 +13,11 @@ table the ledger and outbox use, and provisions two roles:
 Then one environment variable moves the whole engine over:
 
     RATIONALE_DB=postgresql://rationale_app:rationale@localhost:5433/rationale
+
+or, keeping DuckDB as the engine, make the order system a LIVE source the
+engine fetches over the wire at start-up (the heterogeneous-sources story):
+
+    RATIONALE_OMS_DSN=postgresql://rationale_app:rationale@localhost:5433/rationale
 
 Commands (python -m ops.pg_local <command>):
 
@@ -33,6 +39,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -222,32 +229,39 @@ def provision_schema(admin_dsn: str = ADMIN_DSN, app_user: str = APP_USER):
         cur.execute(f"REVOKE UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM {app_user}")
 
 
-def _duckdb_schema(csv_path: pathlib.Path) -> list:
-    import duckdb
-    rows = duckdb.connect().execute(
-        f"DESCRIBE SELECT * FROM read_csv_auto('{csv_path.as_posix()}')").fetchall()
-    return [(name, _TYPES.get(str(t).split("(")[0].upper(), "text")) for name, t, *_ in rows]
-
-
 def load_tables(admin_dsn: str = ADMIN_DSN, app_user: str = APP_USER) -> dict:
-    """(Re)load the four sources from data/*.csv. Types come from DuckDB's own
-    inference so both engines hold identically typed tables; the date column
-    is a DATE, as it is in the DuckDB build."""
+    """(Re)load the declared sources. Each is read with the same
+    engine/sources.py loader the app uses (from its extract file, never from a
+    live connection: this IS the load) into a scratch DuckDB, whose inferred
+    types become the PostgreSQL schema, so both engines hold identically typed
+    tables; then COPY into PostgreSQL."""
+    import duckdb
     import psycopg
-    from engine.db import DATE_COLS, _SOURCES
+    from engine import db as _db
+    from engine import sources as _src
+    scratch = duckdb.connect()
+    _src.load_all(scratch, _db.load_contract(), _db.DATE_COLS, str(ROOT), allow_live=False)
     counts = {}
     with psycopg.connect(admin_dsn, autocommit=True) as c, c.cursor() as cur:
-        for table, fname in _SOURCES.items():
-            path = ROOT / "data" / fname
-            cols = _duckdb_schema(path)
-            cols = [(n, "date" if n == DATE_COLS[table] else t) for n, t in cols]
+        for table in _db.DATE_COLS:
+            cols = [(name, _TYPES.get(str(t).split("(")[0].upper(), "text"))
+                    for name, t, *_ in scratch.execute(f"DESCRIBE {table}").fetchall()]
             ddl = ", ".join(f'"{n}" {t}' for n, t in cols)
             cur.execute(f"DROP TABLE IF EXISTS {table}")
             cur.execute(f"CREATE TABLE {table} ({ddl})")
-            with open(path, encoding="utf-8") as f, \
-                    cur.copy(f"COPY {table} FROM STDIN WITH (FORMAT csv, HEADER true)") as cp:
-                while chunk := f.read(1 << 20):
-                    cp.write(chunk)
+            fd, tmp = tempfile.mkstemp(prefix=f"rationale_{table}_", suffix=".csv")
+            os.close(fd)
+            try:
+                scratch.execute(f"COPY {table} TO '{tmp.replace(chr(92), '/')}' (HEADER, DELIMITER ',')")
+                with open(tmp, encoding="utf-8") as f, \
+                        cur.copy(f"COPY {table} FROM STDIN WITH (FORMAT csv, HEADER true)") as cp:
+                    while chunk := f.read(1 << 20):
+                        cp.write(chunk)
+            finally:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
             cur.execute(f"ANALYZE {table}")
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             counts[table] = cur.fetchone()[0]
@@ -266,10 +280,12 @@ def reset_ledger(admin_dsn: str = ADMIN_DSN):
 
 
 def env():
-    print("# PowerShell")
-    print(f'$env:RATIONALE_DB = "{APP_DSN}"')
-    print("# bash")
-    print(f'export RATIONALE_DB="{APP_DSN}"')
+    print("# Run the whole engine on PostgreSQL (warehouse mode):")
+    print(f'#   PowerShell   $env:RATIONALE_DB = "{APP_DSN}"')
+    print(f'#   bash         export RATIONALE_DB="{APP_DSN}"')
+    print("# Or keep DuckDB and fetch the order system LIVE from PostgreSQL at start-up:")
+    print(f'#   PowerShell   $env:RATIONALE_OMS_DSN = "{APP_DSN}"')
+    print(f'#   bash         export RATIONALE_OMS_DSN="{APP_DSN}"')
 
 
 def init():

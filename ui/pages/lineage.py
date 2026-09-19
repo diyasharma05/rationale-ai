@@ -8,7 +8,7 @@ live ingestion lane written by a separate process.
 import pandas as pd
 import streamlit as st
 
-from engine import db, retrieve
+from engine import db, retrieve, sources
 from services import live_ingest
 from ui.common import C, fmt, section_label, stat_tile
 
@@ -29,10 +29,23 @@ def render(ctx):
                                chip=s["grain"], sub=f"through {s['last']}",
                                accent=C["series"]), unsafe_allow_html=True)
     st.dataframe(pd.DataFrame([
-        {"system": s["system"], "table": t, "grain": s["grain"],
+        {"system": s["system"], "table": t, "kind": s.get("kind", ""),
+         "status": s.get("status", ""), "grain": s["grain"],
          "declared refresh": s["refresh"], "rows": s["rows"],
          "earliest": s["first"], "latest": s["last"]}
         for t, s in stats.items()]), hide_index=True, width="stretch")
+    prov = db.source_provenance()
+    summ = sources.summary(prov)
+    st.caption(f"Reconciled across **{summ['systems']} systems** in "
+               f"**{len(summ['kinds'])} formats** ({', '.join(summ['kinds'])}): "
+               f"{summ['live']} fetched live, {summ['extract']} from a last extract, "
+               f"{summ['file']} from scheduled extract files. A live source that cannot "
+               "be reached falls back to its extract and says so here; nothing is "
+               "substituted silently.")
+    for p_ in prov:
+        if p_["status"] in ("live", "extract"):
+            st.caption(f"{p_['system']}: **{p_['status']}** · {p_['note']}"
+                       + (f" · fetched {p_['fetched_at']}" if p_.get("fetched_at") else ""))
     st.caption(f"Row counts are what **{role_id}** can see: the row filter applies "
                "here too, so this page describes the system as it exists for the "
                "signed-in role rather than in the abstract.")

@@ -104,6 +104,13 @@ def investigate(req: Investigation):
     }
 
 
+@app.get("/sources")
+def sources_():
+    """Where the numbers come from: per source system, its kind, whether it was
+    fetched live or from an extract, rows and as-of date."""
+    return {"engine": db.backend_info(), "sources": db.source_provenance()}
+
+
 @app.get("/metrics/summary")
 def metrics_summary():
     return telemetry.summarize(telemetry.RECORDS)

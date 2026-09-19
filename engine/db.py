@@ -4,9 +4,11 @@ never in the UI.
 
 Two analytics backends behind one `query()`:
 
-  DuckDB      default. In-process, the four CSV sources materialised as typed
-              tables at first use. Zero infrastructure; what the offline demo,
-              the tests and CI run on.
+  DuckDB      default. In-process; the sources the contract declares (a live
+              PostgreSQL order system, CSV extracts, a JSON event feed) are
+              ingested into typed tables at first use by engine/sources.py,
+              which records where each came from. Zero infrastructure; what the
+              offline demo, the tests and CI run on.
   PostgreSQL  when RATIONALE_DB is a postgresql:// DSN. The same contract SQL
               runs unchanged against tables loaded by `python -m ops.pg_local`.
               This is the portability claim made concrete: engine/db.py is the
@@ -36,14 +38,6 @@ DATA = os.path.join(BASE, "data")
 DATE_COLS = {"sales_orders": "order_date", "ops_fulfilment": "ship_date",
              "crm_events": "event_date", "marketing_weekly": "week_start"}
 
-_SOURCES = {
-    "sales_orders": "sales_orders.csv",
-    "ops_fulfilment": "ops_fulfilment.csv",
-    "crm_events": "crm_events.csv",
-    "marketing_weekly": "marketing_weekly.csv",
-}
-
-
 # ---------------- backends ----------------
 
 class _DuckDB:
@@ -52,23 +46,22 @@ class _DuckDB:
     def __init__(self):
         self._conn = None
         self._lock = threading.Lock()
+        self.provenance = []
 
-    @staticmethod
-    def _build():
-        """Materialize the CSV sources as typed TABLEs.
+    def _build(self):
+        """Ingest every declared source into one namespace of typed TABLEs.
 
-        Deliberately tables, not views: a view over read_csv_auto() re-parses the
-        whole file on *every* query (~54 ms per call against an 85k-row CSV, with
-        no warm-up benefit). One build at startup costs ~200 ms and makes every
-        subsequent query a scan of an in-memory table.
+        Deliberately tables, not views: a view over a file reader re-parses the
+        whole file on *every* query (~54 ms per call against an 85k-row CSV,
+        with no warm-up benefit). One build at startup costs a few hundred ms
+        and makes every subsequent query a scan of an in-memory table. The
+        sources are heterogeneous (a PostgreSQL OMS fetched over the wire, CSV
+        extracts, a JSON event feed); engine/sources.py reconciles them and
+        records the provenance this backend then reports.
         """
+        from . import sources
         conn = duckdb.connect()
-        for table, fname in _SOURCES.items():
-            path = os.path.join(DATA, fname).replace("\\", "/")
-            col = DATE_COLS[table]
-            conn.execute(
-                f"CREATE TABLE {table} AS SELECT * REPLACE (CAST({col} AS DATE) AS {col}) "
-                f"FROM read_csv_auto('{path}')")
+        self.provenance = sources.load_all(conn, load_contract(), DATE_COLS, BASE)
         return conn
 
     def conn(self):
@@ -190,6 +183,32 @@ def backend_info() -> dict:
     return {"backend": b.name, "detail": b.describe()}
 
 
+def source_provenance() -> list:
+    """Where every table came from: system, kind, live or extract, rows, as-of.
+
+    On DuckDB this is the record engine/sources.py wrote while ingesting. On
+    the PostgreSQL backend the tables were loaded by the operator
+    (ops/pg_local) so each is reported as a warehouse table, with its kind of
+    origin taken from the contract."""
+    from . import sources
+    b = backend()
+    if b.name == "duckdb":
+        b.conn()                                   # ensure ingested
+        return list(b.provenance)
+    reg = sources.registry(load_contract(), BASE)
+    out = []
+    for table, col in DATE_COLS.items():
+        row = query(f"SELECT COUNT(*) AS n, MAX({col}) AS m FROM {table}").iloc[0]
+        spec = reg.get(table, {})
+        out.append({"table": table, "system": spec.get("system", table),
+                    "kind": spec.get("kind", ""), "grain": spec.get("grain", ""),
+                    "refresh": spec.get("refresh", ""), "status": "warehouse",
+                    "location": b.describe(), "fetched_at": None,
+                    "note": "loaded into PostgreSQL by ops/pg_local from the declared source",
+                    "rows": int(row["n"]), "as_of": str(pd.Timestamp(row["m"]).date())})
+    return out
+
+
 def get_conn():
     """The DuckDB handle (DuckDB backend only). Kept for tooling; application
     code reads through query()."""
@@ -211,6 +230,18 @@ def load_contract():
 def load_roles():
     with open(os.path.join(BASE, "roles.yaml"), encoding="utf-8") as f:
         return yaml.safe_load(f)["roles"]
+
+
+def _fallback_files() -> dict:
+    """table -> the file the engine can always fall back to: the extract for a
+    live source, the file itself otherwise. Derived from the contract; kept
+    because tooling and tests reason about which tables exist through it."""
+    from . import sources
+    return {t: (s.get("fallback") or s["location"])
+            for t, s in sources.registry(load_contract(), BASE).items()}
+
+
+_SOURCES = _fallback_files()
 
 
 # ---------------- row-level security ----------------
@@ -336,10 +367,13 @@ def source_stats(role_id: str):
         row = query(f"SELECT COUNT(*) AS n, MIN({col}) AS lo, MAX({col}) AS hi "
                     f"FROM {table} WHERE 1=1{where}").iloc[0]
         meta = contract["sources"].get(table, {})
+        prov = {p["table"]: p for p in source_provenance()}.get(table, {})
         out[table] = {
             "system": meta.get("system", table),
             "grain": meta.get("grain", ""),
             "refresh": meta.get("refresh", ""),
+            "kind": prov.get("kind", meta.get("kind", "")),
+            "status": prov.get("status", ""),
             "rows": int(row["n"]),
             "first": str(pd.Timestamp(row["lo"]).date()),
             "last": str(pd.Timestamp(row["hi"]).date()),
