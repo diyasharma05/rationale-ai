@@ -12,7 +12,8 @@ from ui.components.actions import render_actions          # noqa: F401
 from ui.components.charts import (base_layout,            # noqa: F401
                                   confidence_components, confidence_gauge,
                                   contribution_waterfall, delta_bar,
-                                  gate_bullets, hypothesis_bars, sparkline)
+                                  contract_graph, gate_bullets, hypothesis_bars,
+                                  sparkline)
 from ui.components.method import (METHODS, method_chip,   # noqa: F401
                                   method_chip_row, method_strip)
 from ui.components.tiles import (badge, pill,             # noqa: F401

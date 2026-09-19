@@ -39,7 +39,7 @@ order of the evaluators' three points.
 | 3 | **Our thesis** | 2 | The model never computes a number and never makes a routing decision. It writes sentences. Everything else is SQL, statistics, and a governed contract. |
 | 4 | **The semantic contract** | 2, 3 | One artifact defines the KPI, its thresholds, its drivers, its levers, their owners and approvers, who may see it, and where its sources live: a live PostgreSQL order system, CSV extracts and a JSON event feed, reconciled at ingestion with provenance on screen. The dbt Labs result (90 → 98%) is independent evidence this is the right layer. |
 | 5 | **Live demo** (5 min) | all | Per `DEMO_SCRIPT.md`. Open with the honest line about synthetic data. |
-| 6 | **Why we trust the numbers** | 3 | Precision 100% / recall 100% across 36 cases and five control months; FDR-controlled; confidence cannot reach 1.0; the harness is mutation-tested. Show the gate-separation margins including the narrow one. |
+| 6 | **Why we trust the numbers** | 3 | Precision 100% / recall 100% across 36 cases and five control months; FDR-controlled; confidence cannot reach 1.0; the harness is mutation-tested. Show the gate-separation margins including the narrow one. Then the one causal estimate: the North-West shock is about 82% of July's revenue movement, with its interval and its assumption check, and "not identifiable" for the national tracking bug. |
 | 7 | **Why the flagship case is TENTATIVE** | 2, 3 | Because it should be. Revenue's own signal is marginal (p ≈ 0.07); the drivers carry it. An engine that called it ESTABLISHED at 0.71 is the one to distrust. |
 | 8 | **A governed agent** | 2, 3 | It perceives, reasons, decides, acts and learns — and here is exactly where the autonomy stops and why: RBAC in SQL and at the API; masking before the prompt; the model never plans, picks a tool or chooses a recipient; human approval before any dispatch; silence on no-signal. |
 | 9 | **Runs every day** | 3 | 198 tests, two CI gates, offline-safe, container, concurrency curve with zero wrong answers under load. Runs unchanged on PostgreSQL with identical verdicts; the ledger becomes one shared append-only table. |
@@ -76,7 +76,10 @@ that you did not say them.
 | Is confidence a probability? | D12; slide 6 |
 | Why 0.10? | D10; slide 6 |
 | Your headline case doesn't conclude? | D13; slide 7 |
-| Where does causation come from? | D14 |
+| Where does causation come from? | D14 for the drivers (co-movement); D30 for the one causal estimate, with its identification conditions |
+| Is there any forecasting? | D31; the trend band under every chart, with R² stated |
+| Is the contract an ontology? | D32; the graph on the Lineage page; `GET /graph` |
+| Does anything happen without a click? | D33; `python -m ops.watch` drafts into the Outbox and never sends |
 | Who validated this with users? | Part V of the design doc; slide 12 — say it first |
 | What stops it spamming my VP? | D23; slide 8 |
 | How does it deploy / scale? | D20–21, D28; slide 9; `/docs` on the API |

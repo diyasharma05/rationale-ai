@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 import feedback
 import store
 import telemetry
-from engine import db, pyramid, screening
+from engine import db, graph, pyramid, screening
 from llm.client import LLMClient
 
 app = FastAPI(
@@ -99,9 +99,21 @@ def investigate(req: Investigation):
         "evidence": [{"id": s["id"], "file": s["file"], "date": s["date"]}
                      for s in r.get("snippets", [])],
         "method_mix": r.get("method_mix"),
+        "causal": r.get("causal"),
+        "forecast": r.get("forecast"),
+        "exposure": r.get("exposure"),
         "llm_calls": len(r.get("telemetry", [])),
         "wall_ms": round((time.perf_counter() - t0) * 1000, 1),
     }
+
+
+@app.get("/graph")
+def graph_():
+    """The semantic contract as a knowledge graph: systems host sources, sources
+    feed KPIs, KPIs drive KPIs (with a declared direction), levers control KPIs,
+    owners own levers, approvers approve them."""
+    g = graph.build(db.load_contract())
+    return {**g, "counts": graph.counts(g)}
 
 
 @app.get("/sources")

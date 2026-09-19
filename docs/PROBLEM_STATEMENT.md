@@ -122,8 +122,10 @@ Everything the model does is write sentences about facts it was handed.
 
 ## 4. What we have deliberately not solved
 
-- **Causal inference.** The contract declares causal links; the engine tests
-  concurrent movement. We say "co-moves", not "causes".
+- **Causal inference, beyond one design.** The contract declares causal links;
+  the driver checks test concurrent movement and say "co-moves", not "causes".
+  The one causal estimate is a difference-in-differences on the regional panel,
+  available only when an untreated region exists as a control.
 - **Seasonality.** Stationary baseline over ≤ 12 months.
 - **Real users.** Nobody outside the team has used this. The pilot plan
   (`docs/PILOT_AND_OPERATIONS.md`) is the path to changing that, and the

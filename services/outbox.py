@@ -57,6 +57,19 @@ def draft(result: dict, cfg: dict, actor: str) -> list:
     return ids
 
 
+def draft_message(msg, actor: str, dedupe_key: str = None):
+    """Queue one fully resolved message that did not come from an investigation
+    (the watcher's live-lane escalations). Idempotent on `dedupe_key`, so a
+    breach that persists across polls is drafted once, not once per poll."""
+    if dedupe_key and any(m.get("dedupe_key") == dedupe_key for m in messages()):
+        return None
+    mid = f"MSG-{uuid.uuid4().hex[:8].upper()}"
+    _append({"event": "draft", "id": mid, "investigation": "",
+             "ts": datetime.now().isoformat(timespec="seconds"),
+             "actor": actor, "dedupe_key": dedupe_key, **msg.as_dict()})
+    return mid
+
+
 def approve(message_id: str, actor: str, note: str = ""):
     _append({"event": "approve", "id": message_id, "actor": actor, "note": note,
              "ts": datetime.now().isoformat(timespec="seconds")})

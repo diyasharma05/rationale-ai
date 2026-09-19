@@ -209,6 +209,16 @@ Under the Hood → **"Does it actually get the right answer?"**
   documents retrieved, and *"LLM · words only"*.
 - **"What if the API is down?"** → It already is. This entire demo has been
   running offline on cached responses.
+- **"Where's the causal inference / forecasting / knowledge graph?"** → On the
+  revenue investigation, scroll to *Causal estimate*: difference-in-differences,
+  North-West against the other four regions, about −₹0.7 lakh a day with its
+  interval and the pre-period check; roughly 82% of the month's movement. Then
+  open marketing conversion: *Not identifiable* — no untreated region, so it
+  says so. The forecast band sits under every chart with R² stated. The
+  contract graph is on the Lineage page; pick a KPI to light up its neighbourhood.
+- **"Does anything happen without a click?"** → `python -m ops.watch` in a
+  terminal: it scans, drafts into the Outbox for every material movement, and
+  stops. Nothing sends until a person approves.
 - **"How does this deploy?"** → `docker compose up`. Same engine behind a
   FastAPI service (`/docs`), because `investigate(kpi, period, role)` is
   stateless given its inputs. RBAC is enforced at the API, not just the UI —

@@ -86,9 +86,10 @@ measurement artifact never leads the revenue story
 (`test_planted_measurement_artifact_does_not_corroborate`). Design decisions
 D14, D15, D16.
 
-**Gap.** No causal inference: no lag structure, no confounder control, no
-counterfactual. The contract declares the causal links; the engine tests
-concurrent movement and says so.
+**Gap.** The driver checks themselves remain co-movement: no lag structure,
+no confounder control. The one causal quantity is the difference-in-differences
+estimate (D30), and it is only identifiable where the regions provide an
+untreated comparison group; the engine says "not identifiable" otherwise.
 
 ## 4. Generates persona-specific narratives supported by traceable evidence — Done
 
@@ -188,6 +189,24 @@ decisions D8, D17, D27.
 **Gap.** The effects are bounded by design and calibrated by judgement, not by
 outcome data; a pilot would measure whether corrected explanations stay
 corrected.
+
+---
+
+# The solutioning areas, one by one
+
+The brief also listed eight areas teams "may explore a hybrid combination of".
+Same treatment: what is done, where, how it is pinned, what is not.
+
+| Area | Status | Where | Pinned by | Not done |
+|---|---|---|---|---|
+| Anomaly detection, contribution analysis, **forecasting**, **causal inference**, business-rule reasoning | Done | `engine/anomaly.py`, `screening.py`, `contribution.py`, `forecast.py` (OLS band, two scenarios, R² stated), `causal.py` (difference-in-differences on the regional panel with interval, placebo check, permutation floor; "not identifiable" when no control group), contract thresholds and levers as the rules | `test_causal_graph_forecast.py`: a regional shock yields a negative effect whose interval excludes zero; a national movement is not identifiable; a KPI without a panel is not identifiable | Causal identification only where regions give a control group; no seasonality |
+| Governed KPI semantics, metadata, lineage, business rules, **ontology / knowledge graph** | Done | The contract; the Lineage page with provenance; `engine/graph.py` builds the graph (42 nodes, 52 edges), draws it, and the engine walks it up (unexplained drivers) and down (exposure: downstream KPIs and owners) | Graph tests: no dangling edges; downstream reads driver edges in reverse; exposure names the owners | No inference over the graph beyond traversal |
+| LLM-assisted intent understanding, orchestration, narrative synthesis, contextual retrieval | Done, with orchestration deliberately deterministic | `services/intent.py`, `engine/pyramid.py` (the orchestration: fixed levels, gates, early exit), `llm/prompts.py`, `engine/retrieve.py` | D26; `test_intent.py`; `test_pyramid_paths.py` | The model does not plan or choose tools, by decision |
+| **Proactive alerts**, conversational analysis, augmented dashboards, decision workspaces | Done | `ops/watch.py` scans the portfolio and the live lane and drafts into the Outbox, never sends; the ask box and deterministic follow-ups are the conversational entry; Dashboard + Investigation + Outbox is the decision workspace | `test_watch.py`: drafts every material movement once, escalates a live breach once per day, never sends | No free-form multi-turn chat; conversational follow-ups are governed intents |
+| Confidence scoring, evidence citation, **alternative hypotheses**, abstention | Done | `engine/confidence.py`; `[E#]` citations; the "alternatives considered" list with the reason each ranks lower; the abstain path | `test_confidence.py`; `test_pyramid_paths.py`; snapshots | Confidence is a calibrated score on planted data |
+| Action chain: driver → controllable lever → action → expected impact → owner → confidence → monitoring plan | Done, in that order | `llm/prompts.py` (the schema), `ui/components/actions.py` (the card), `engine/policy.py` (owner and decision right from the contract) | `test_dispatch.py`: recipient and approval come from the contract | Constraints beyond decision rights (budgets, capacity) are not modelled |
+| Human feedback, expert validation, correction workflows, learning loops | Done and measured | `feedback.py`, the abstain loop, `PRECEDENT_ADJUST`, `VOTE_WEIGHT` | `test_learning_loop.py`, `test_abstain_loop.py` | Effects bounded by judgement, not fitted to outcome data |
+| Platform-native or custom (Databricks, Snowflake, Fabric, Tableau, Qlik, Looker, or other) | Custom, with the seam proven | DuckDB in-process by default; PostgreSQL as a second parity-tested engine and as a live source; the contract SQL is the portability layer; Section 25 of the product guide maps each component to a warehouse stack | `test_backend_parity.py` | No warehouse connector has been run against a real Snowflake/Databricks account |
 
 ---
 

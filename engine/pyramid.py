@@ -19,8 +19,8 @@ import telemetry
 from llm import fallback, prompts
 from llm.client import HAIKU, SONNET
 
-from . import (anomaly, confidence, contribution, db, drivers, economics,
-               retrieve, screening)
+from . import (anomaly, causal, confidence, contribution, db, drivers, economics,
+               forecast, graph, retrieve, screening)
 
 EARLY_EXIT = 0.90
 
@@ -276,6 +276,10 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         })
         result["confidence"] = confidence.score(an["z"], [], [])
         result["outcome"] = "no_signal"
+        # the forward view and the contract's blast radius are worth having
+        # even when nothing moved: they are what "normal" looks like next month
+        result["forecast"] = forecast.next_months(series, an, cfg["unit"])
+        result["exposure"] = graph.exposure(contract, kpi_id)
         result["narrative"] = {
             "headline": f"{cfg['name']}: nothing unusual here",
             "body": (f"{_movement_str(an, cfg['unit'], technical=False)}. "
@@ -298,6 +302,14 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     contrib = contribution.top_contributors(kpi_id, cfg, period, role_id)
     driver_findings = drivers.check_drivers(cfg, an["z"], period, role_id,
                                             parent_series=series)
+    # Three things the brief's solutioning areas name that sit beside the
+    # verdict without touching the confidence score or the gates: a causal
+    # estimate (difference-in-differences, identifiable only when an untreated
+    # comparison group exists), a forward view stated with its width, and the
+    # contract's blast radius (who else this movement touches).
+    causal_est = causal.estimate(kpi_id, period, role_id, contrib["focus_regions"], an)
+    fc = forecast.next_months(series, an, cfg["unit"])
+    exposure = graph.exposure(contract, kpi_id)
 
     # --- corroborating detectors (all non-LLM) ---
     # Deliberately NOT called an ensemble of independent votes. The OLS check
@@ -360,6 +372,8 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
         "contribution": {k: v.head(6) for k, v in contrib["tables"].items()},
         "focus_regions": contrib["focus_regions"],
         "drivers": driver_findings,
+        "causal": causal_est,
+        "forecast": fc,
         "confidence_after": conf1["value"],
         "gate": {"name": "Signal gate", "passed": True,
                  "detail": (f"z={an['z']} (needs ≥{cfg['materiality']['min_abs_z']}), "
@@ -372,7 +386,8 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
                                   "which points away from a regional cause)"))},
     })
     result.update(hypotheses=hypotheses, contradictions=contradictions,
-                  contribution=contrib, drivers=driver_findings)
+                  contribution=contrib, drivers=driver_findings,
+                  causal=causal_est, forecast=fc, exposure=exposure)
 
     # ---------------- LEVEL 2 : company context (retrieval + LLM mapping) ----------------
     _p("**Level 2 · Company context** : searching tickets, transcripts, ops notes and the "
@@ -571,6 +586,20 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
             d["label"]: d["corr"] for d in driver_findings if d.get("corr") is not None},
         "levers": cfg.get("levers", []),
         "past_playbooks": [s["text"][:300] for s in ret["snippets"] if s["kind"] == "ledger"],
+        # computed, never model-scored; the prompt may quote them once, with the assumption
+        "causal_estimate": ({"identifiable": True, "summary": causal.summary_line(causal_est),
+                             "treated": causal_est["treated"], "controls": causal_est["controls"],
+                             "effect": causal_est["effect"], "ci95": causal_est["ci95"],
+                             "unit": causal_est["unit"],
+                             "parallel_trends_ok": causal_est["pretrend"]["parallel_ok"],
+                             "monthly_effect": causal_est.get("monthly_effect"),
+                             "share_of_movement": causal_est.get("share_of_movement")}
+                            if causal_est.get("identifiable") else
+                            {"identifiable": False, "reason": causal_est.get("reason")}),
+        "forecast": ({"summary": forecast.summary_line(fc, economics.fmt_value),
+                      "periods": fc["periods"], "pred": fc["pred"], "lo": fc["lo"], "hi": fc["hi"],
+                      "r2": fc["r2"]} if fc else None),
+        "downstream_exposure": exposure,
     }
     _p("**Narrative** : writing the persona-specific explanation and grounded actions "
        "(Claude Sonnet, numbers passed in verbatim)…")
@@ -602,7 +631,8 @@ def investigate(kpi_id: str, period: str, role_id: str, llm, progress=None) -> d
     result["method_mix"] = {
         "sql_queries": 1 + 4 * len(cfg.get("dimensions", [])) + len(driver_findings)
                        + (1 if iforest else 0),
-        "stat_tests": 2 + 2 * len(driver_findings),
+        "stat_tests": 2 + 2 * len(driver_findings)
+                      + (3 if causal_est.get("identifiable") else 0),   # DiD, pre-trend placebo, permutation
         "ml_models": (iforest or {}).get("n_models", 0),
         "docs_retrieved": len(ret["snippets"]),
         "events_scanned": len(_load_market_events()),

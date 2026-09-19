@@ -69,7 +69,11 @@ NARRATIVE_SYSTEM = (
     "engine has not established causation, so do not write as though it has. Never claim a "
     "driver 'caused' the movement; say it moved with it, or that the evidence points to it. "
     "If a hypothesis is marked unexplained, present it as a lead worth checking, never as a "
-    "reason the KPI moved."
+    "reason the KPI moved. If causal_estimate.identifiable is true you may state its effect "
+    "with its interval in plain words, once, and say it rests on the affected and unaffected "
+    "regions having moved alike beforehand; if it is false, do not imply causation. If a "
+    "forecast is provided you may mention next month's expected range once. If "
+    "downstream_exposure lists KPIs, you may name who else is affected, from that list only."
 )
 
 

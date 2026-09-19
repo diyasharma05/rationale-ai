@@ -252,3 +252,67 @@ def gate_bullets(an, cfg, height=118):
     fig.update_xaxes(range=[0, max(ratios) * 1.18 + 0.1], visible=False)
     fig.update_yaxes(tickfont=dict(size=10, color=C["ink2"]))
     return fig
+
+
+# ---------------------------------------------------------------- the contract as a graph
+
+_GRAPH_LAYER = {"system": 0, "source": 1, "metric": 2, "kpi": 2, "lever": 3, "owner": 4, "approver": 4}
+_GRAPH_LABEL = {"system": "systems", "source": "sources", "kpi": "KPIs", "metric": "metrics",
+                "lever": "levers", "owner": "owners", "approver": "approvers"}
+
+
+def contract_graph(g, focus=None, height=560):
+    """The semantic contract drawn as a layered knowledge graph: systems, sources,
+    KPIs (with the metrics that drive them), levers, and the owners and approvers
+    who hold them. `focus` is a node id whose two-hop neighbourhood is kept bright.
+    Positions are deterministic (sorted within each layer), so the picture is the
+    same on every machine and in every snapshot."""
+    nodes = {n_["id"]: n_ for n_ in g["nodes"]}
+    columns = {}
+    for n_ in g["nodes"]:
+        columns.setdefault(_GRAPH_LAYER[n_["type"]], []).append(n_)
+    pos = {}
+    for layer, ns in columns.items():
+        ns = sorted(ns, key=lambda n_: (n_["type"], n_["label"]))
+        for i, n_ in enumerate(ns):
+            pos[n_["id"]] = (layer, 1.0 - (i + 0.5) / len(ns))
+    keep = None
+    if focus and focus in nodes:
+        keep = {focus}
+        for _ in range(2):
+            keep |= {e["source"] for e in g["edges"] if e["target"] in keep}
+            keep |= {e["target"] for e in g["edges"] if e["source"] in keep}
+    edge_color = {"hosts": C["muted"], "feeds": C["ink2"], "drives": C["series"],
+                  "controls": C["warning"], "owns": C["good"], "approves": C["critical"]}
+    fig = go.Figure()
+    for e in g["edges"]:
+        (x0, y0), (x1, y1) = pos[e["source"]], pos[e["target"]]
+        dim = keep is not None and not (e["source"] in keep and e["target"] in keep)
+        label = e["type"] + (f" ({e['relation']})" if e.get("relation") else "")
+        fig.add_trace(go.Scatter(x=[x0, x1], y=[y0, y1], mode="lines",
+                                 line=dict(width=1 if dim else 1.6,
+                                           color=edge_color.get(e["type"], C["muted"])),
+                                 opacity=0.15 if dim else 0.75, hoverinfo="text", text=label,
+                                 showlegend=False))
+    node_color = {"system": C["ink2"], "source": C["muted"], "kpi": C["series"], "metric": C["muted"],
+                  "lever": C["warning"], "owner": C["good"], "approver": C["critical"]}
+    for ntype in _GRAPH_LAYER:
+        ns = [n_ for n_ in g["nodes"] if n_["type"] == ntype]
+        if not ns:
+            continue
+        dimmed = [keep is not None and n_["id"] not in keep for n_ in ns]
+        fig.add_trace(go.Scatter(
+            x=[pos[n_["id"]][0] for n_ in ns], y=[pos[n_["id"]][1] for n_ in ns],
+            mode="markers+text", name=_GRAPH_LABEL[ntype],
+            text=[n_["label"][:30] + ("…" if len(n_["label"]) > 30 else "") for n_ in ns],
+            textposition="middle right" if _GRAPH_LAYER[ntype] < 4 else "middle left",
+            textfont=dict(size=10, color=C["ink"]),
+            marker=dict(size=[7 if dm else 11 for dm in dimmed], color=node_color[ntype],
+                        opacity=[0.25 if dm else 0.95 for dm in dimmed], line=dict(width=0)),
+            hovertext=[f"{n_['type']}: {n_['label']}" for n_ in ns], hoverinfo="text"))
+    base_layout(fig, height)
+    fig.update_layout(xaxis=dict(visible=False, range=[-0.2, 5.2]),
+                      yaxis=dict(visible=False, range=[-0.05, 1.05]),
+                      legend=dict(orientation="h", y=1.05, x=0),
+                      margin=dict(l=10, r=10, t=36, b=10))
+    return fig

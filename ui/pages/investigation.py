@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 import streamlit as st
 import yaml
 
+from engine import causal, forecast
+
 import feedback as fb
 import telemetry
 from engine import (anomaly, confidence, db, dispatch, economics, explore,
@@ -116,6 +118,10 @@ def render(ctx):
             if not an["sparse"] and len(r["series"]) >= 7:
                 cap.append("dotted trend = 3-month OLS forecast (90% interval)")
             st.caption(" · ".join(cap))
+            if r.get("forecast"):
+                fcst = r["forecast"]
+                st.caption(forecast.summary_line(fcst, fmt) + " " + fcst["caveat"][0].upper()
+                           + fcst["caveat"][1:] + ".")
         with vR:
             st.markdown(f"<div style='padding:8px 12px;border:1px solid {outcome_style[1]}55;"
                         f"border-left:4px solid {outcome_style[1]};border-radius:8px;"
@@ -137,6 +143,12 @@ def render(ctx):
             elif not is_exec and an["z"] is not None:
                 facts.append(f"z = **{an['z']}**")
             st.markdown("  \n".join(facts))
+        ex = r.get("exposure") or {}
+        if ex.get("downstream"):
+            names = ", ".join(f"{d_['name']} ({d_['relation']})" for d_ in ex["downstream"])
+            owners = ", ".join(o["owner"] for o in ex.get("owners", []))
+            st.caption(f"**Downstream exposure**, from the contract's driver graph: this KPI is a "
+                       f"declared driver of {names}. Owners touched: {owners or '—'}.")
         method_strip(r)
 
         # ---- why it moved: charts lead, prose supports ----
@@ -181,6 +193,30 @@ def render(ctx):
                               f"guard): {r['unvalidated_lead']}", C["warning_text"]),
                         unsafe_allow_html=True)
 
+        # ---- alternatives considered: each one, and why it ranks lower ----
+        alts = [h for h in r.get("hypotheses", []) if (h.get("rank") or 1) > 1]
+        n_alt = len(alts) + len(r.get("eliminated_leads") or []) + (1 if r.get("unvalidated_lead") else 0)
+        if n_alt:
+            with st.expander(f"Alternatives considered ({n_alt}) : and why each ranks lower"):
+                for h in alts:
+                    if h.get("unexplained"):
+                        why = "moved with this KPI, but nothing upstream explains it: a lead, not corroboration"
+                    elif not (h.get("snippets") or h.get("events")):
+                        why = "no document or event backs it"
+                    else:
+                        why = "backed, but a weaker movement than the leading explanation"
+                    st.markdown(f"- **#{h['rank']}** {h['label'].split(' : ')[0]} — {why} "
+                                f"(strength {h.get('strength', 0):.2f})")
+                for d_ in r.get("contradictions", []):
+                    st.markdown(f"- **contradicted:** {d_['label']} moved the opposite way to what "
+                                "would explain this KPI")
+                for lead in r.get("eliminated_leads") or []:
+                    st.markdown(f"- **ruled out by {lead['actor']}:** {lead['lead']}")
+                if r.get("unvalidated_lead"):
+                    st.markdown(f"- **model-proposed, not admitted:** {r['unvalidated_lead']} (the "
+                                "contract declares drivers, so an unstructured anecdote cannot become "
+                                "evidence)")
+
         # ---- where the movement sits (region view) ----
         contrib_tables = (r.get("contribution") or {}).get("tables", {})
         reg_table = contrib_tables.get("region")
@@ -199,6 +235,35 @@ def render(ctx):
                 st.plotly_chart(delta_bar(reg_table, dim_unit, bad_when=bad_when),
                                 width="stretch",
                                 config={"displayModeBar": False}, key=f"wf_{kpi_id}")
+        # ---- causal estimate: difference-in-differences on the regional panel ----
+        ce = r.get("causal")
+        if ce and is_exec:
+            line = causal.plain_line(ce, fmt)
+            if line:
+                st.caption(line)
+        elif ce:
+            section_label("Causal estimate · difference-in-differences on the regional panel")
+            if ce.get("identifiable"):
+                st.markdown(causal.summary_line(ce))
+                pt, pl = ce["pretrend"], ce["placebo"]
+                st.caption(f"Pre-period placebo {pt['effect']:+.3g} (95% CI {pt['ci95'][0]:+.3g} to "
+                           f"{pt['ci95'][1]:+.3g}) · placebo regions {pl['effects']} · permutation "
+                           f"p = {pl['p']} (floor {pl['floor']} with this many regions) · windows "
+                           f"{ce['pre_window'][0]} to {ce['pre_window'][1]} vs {ce['post_window'][0]} to "
+                           f"{ce['post_window'][1]}.")
+                if ce.get("monthly_effect") is not None:
+                    share = ce.get("share_of_movement")
+                    st.caption(f"Scaled to the month: about {fmt(ce['monthly_effect'], 'INR')} across the "
+                               "treated region(s)"
+                               + (f", roughly {share:.0%} of this month's total movement" if share else "")
+                               + ".")
+                st.caption(f"Assumptions: {ce['assumptions']} The confidence score does not use this "
+                           "estimate; it is evidence beside the verdict.")
+            else:
+                st.caption(f"**Not identifiable:** {ce.get('reason')}. A causal effect is estimated only "
+                           "when an untreated comparison group exists; otherwise the engine says so "
+                           "rather than fitting something.")
+
         if has_hyp:
             with st.expander("Hypothesis details : evidence IDs, sources, full labels"):
                 hdf = pd.DataFrame([{
@@ -219,6 +284,7 @@ def render(ctx):
             section_label("Low-regret steps while confirming" if r["outcome"] == "tentative"
                           else "What to do about it")
         if n.get("actions"):
+            st.caption("Each card follows the chain the brief asks for: driver → controllable lever → action → expected impact → owner → confidence → monitoring plan.")
             render_actions(n["actions"], cfg)
         if n.get("clarifying_question"):
             # The abstain loop. The engine asked; this is where a human answers,

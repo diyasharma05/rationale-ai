@@ -8,9 +8,9 @@ live ingestion lane written by a separate process.
 import pandas as pd
 import streamlit as st
 
-from engine import db, retrieve, sources
+from engine import db, graph, retrieve, sources
 from services import live_ingest
-from ui.common import C, fmt, section_label, stat_tile
+from ui.common import C, contract_graph, fmt, section_label, stat_tile
 
 
 def render(ctx):
@@ -101,6 +101,22 @@ def render(ctx):
     st.caption("Two of the documents are deliberate red herrings. Retrieval is "
                "whole-term weighted matching; precedent is only admissible from "
                "periods strictly before the one being analysed.")
+
+    # ------------------------------------------------ the contract as a graph
+    section_label("The contract as a knowledge graph")
+    g = graph.build(db.load_contract())
+    gc = graph.counts(g)
+    st.caption(f"{gc['nodes']} nodes and {gc['edges']} edges, read straight from the contract: "
+               f"{gc['system']} systems host {gc['source']} sources that feed {gc['kpi']} KPIs; KPIs and "
+               f"{gc['metric']} metrics drive one another along declared directions; {gc['lever']} levers "
+               f"control them, held by {gc['owner']} owners under {gc['approver']} approvers. Investigations "
+               "walk this graph: one level upstream to test whether a driver is itself explained, and "
+               "downstream to name who else a movement touches.")
+    focus = st.selectbox("Highlight the neighbourhood of", ["(all)"] + list(kpis),
+                         format_func=lambda k: "(all)" if k == "(all)" else kpis[k]["name"],
+                         key="graph_focus")
+    st.plotly_chart(contract_graph(g, None if focus == "(all)" else f"kpi:{focus}"),
+                    width="stretch", config={"displayModeBar": False}, key="contract_graph")
 
     # --------------------------------------------------------- the live lane
     section_label("Live ingestion, from a second process")

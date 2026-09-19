@@ -396,7 +396,10 @@ except for the ledger write, which is why D28 gives the ledger a shared home.
 
 1. **No real users.** See D7 and Part IV.
 2. **No seasonality.** The baseline is stationary over ≤ 12 months.
-3. **No causal inference.** See D14.
+3. **Causal inference only where the regions give a control group.** The
+   driver checks remain co-movement (D14); the difference-in-differences
+   estimate (D30) is identifiable for a regional shock and says "not
+   identifiable" for a national one.
 4. **Prose numbers are not verified against the facts.** The model can still
    mis-state a figure it was given. Cheap to add; not yet done.
 5. **Retrieval is keyword matching**, not embeddings — deliberately, to keep
@@ -692,6 +695,101 @@ others are the extract formats those systems actually produce. What makes it
 reconciliation rather than loading is the contract: it declares the grain and
 cadence of each, and the KPI SQL joins across them, CRM events over OMS orders,
 without knowing where either side lives.
+
+### D30. Causal inference, honestly scoped: difference-in-differences on the regional panel. [R3] **[team call]**
+
+The brief lists causal inference among the solutioning areas, and D14 says
+plainly that the engine tests concurrent movement, not causation. Both can be
+true if the causal quantity is estimated where the data actually identifies
+one, and withheld where it does not.
+
+**The design that the data supports.** Every daily source is regional. The
+contribution analysis already says which regions a movement is concentrated in.
+Those regions are the treated units; the other regions the role can see are the
+controls; the three months before the analysis month are the pre-period; the
+month itself is the post-period. Difference-in-differences on that weekly panel
+gives an effect size with an interval, which no amount of co-movement can.
+
+**What it reports, for July revenue (analyst).** North-West versus East, North,
+South, West: about **−₹0.71 lakh per day** in the treated region, 95% CI
+−₹1.27 to −₹0.17 lakh (week-block bootstrap, 400 draws). Scaled to the month,
+−₹21 lakh, roughly **82% of the total movement** — the rest is what the other
+regions did. The pre-period placebo is near zero, so parallel trends look
+plausible. Fulfilment SLA: −11.4 percentage points. Complaint rate: +24 per
+thousand orders. AOV: an interval that spans zero, consistent with the signal
+gate saying nothing moved.
+
+**What it refuses to report.** The planted marketing tracking bug hits every
+region alike. There is no untreated comparison group, and the engine says
+"not identifiable" with that reason, rather than fitting something. Enterprise
+accounts have no regional daily panel; same answer, different reason. The sales
+head sees two regions, so the design runs with one control and the output says
+to treat the interval with caution.
+
+**Inference, stated to its limits.** With five regions a permutation test
+cannot go below p = 0.2; the placebo-region effects are shown as the small
+reference distribution they are, and the bootstrap interval carries the
+precision claim. A shock that began before the month boundary (the conveyor
+failed on 25 June) is partly absorbed into the pre-period, which biases the
+estimate toward zero; the page says so.
+
+**What does not change.** The confidence score and the gates. Adding a
+component would move every calibrated threshold; the estimate is evidence
+beside the verdict, quoted by the narrative once, with its assumption. It runs
+in about 20 ms.
+
+**Judge asks:** *"So now you do claim causation?"*
+**Answer:** We estimate a causal effect where the data has a control group, we
+show the assumption check next to it, and we say "not identifiable" where it
+does not. The drivers page still says "moved with it". Those are different
+claims and the interface keeps them apart.
+
+### D31. The forecast gets a voice, stated with its width. [R3]
+
+The sparkline has drawn a three-month OLS forecast with a 90% prediction
+interval since Round 2; the numbers never reached the narrative or the API.
+They do now, anchored on the analysis month and using only history up to it,
+with two scenarios (this month's level persists; it reverts to baseline) and
+the honest caveat that on these series the trend explains little of the
+variance, so the interval is essentially the normal range: the band next month
+must leave before it is news. It is a forward view, not a prediction, and it is
+labelled that way.
+
+### D32. The contract is a knowledge graph; the engine now walks it both ways. [R3]
+
+Systems host sources, sources feed KPIs, KPIs drive KPIs along declared
+directions, levers control KPIs, owners own levers, approvers approve them. The
+contract was always this graph; `engine/graph.py` makes it explicit (42 nodes,
+52 edges for the demo contract), the Lineage page draws it with a neighbourhood
+highlight, and `GET /graph` serves it. The engine already walked one edge
+upstream (D14's unexplained-driver check); it now walks downstream too, and
+every investigation states its **exposure**: which KPIs declare this one as a
+driver, in which direction, and which owners that touches. A fulfilment shock
+names revenue, complaints and enterprise accounts, and four owners, before the
+model has written a word.
+
+### D33. Proactive alerts: a watcher that drafts, and never sends. [R3]
+
+The prototype detected, routed and dispatched, but only when a person clicked.
+`ops/watch.py` closes that gap without opening the one D23 forbids: it runs the
+same multiplicity-controlled portfolio scan and the same live-lane rule, drafts
+into the Outbox whatever the contract routes for any material movement that has
+no message yet, and escalates a live breach to the KPI owner. Nothing sends.
+Idempotent per (KPI, period) and per (regions, day); every run is an event in
+the `watch` stream. The Outbox shows the actor as "watcher", so a human can see
+what the engine proposed overnight and approve, discard, or ignore it.
+
+### D34. Alternatives considered, and the action chain, made explicit. [R3]
+
+Two solutioning areas were already implemented but not visible as such. The
+ranked hypotheses now come with an "alternatives considered" list that says, for
+each explanation that did not lead, why it ranks lower: unexplained (a lead, not
+corroboration), unbacked, contradicted, ruled out by a named person, or
+model-proposed and refused by the hallucination guard. And every action card
+follows the brief's chain in the brief's order, driver → controllable lever →
+action → expected impact → owner → confidence → monitoring plan, with the owner
+and decision right resolved from the contract rather than from the sentence the
+model wrote.
 
 ## Part V — The honest opening
 

@@ -66,6 +66,16 @@ not just in the UI. `ops/bench.py` measures the concurrency curve: ~8-9 req/s on
 one process with zero wrong answers under contention, which is the honest
 "add replicas past here" answer.
 
+**It estimates one causal effect, where the data can identify one.** Difference-in-
+differences on the regional panel: the regions in focus against the rest, the three months
+before against the analysis month, with a bootstrap interval, a pre-period placebo check
+and the permutation floor stated. For July revenue the North-West shock is about −₹0.7 lakh
+a day, roughly 82% of the month's movement. For the national tracking bug it says "not
+identifiable" rather than fitting something. The confidence score does not use it. The
+contract is also drawn and walked as a knowledge graph (exposure: who else a movement
+touches), every chart carries a forecast band with R² stated, and `python -m ops.watch`
+drafts alerts into the Outbox proactively without ever sending one.
+
 **Its sources are heterogeneous, and it says which it read.** The order system is a
 live PostgreSQL database fetched over the wire at start-up (falling back, visibly, to
 the last nightly extract when unreachable); the warehouse and marketing systems drop
@@ -81,7 +91,7 @@ INSERT-only application role. A parity suite asserts every KPI series and all 36
 evaluation verdicts are identical on both engines. `python -m ops.pg_local init` runs
 PostgreSQL as a plain user process — no Docker, no service, no admin rights.
 
-**It is tested.** 198 tests where there were effectively none:
+**It is tested.** 223 tests where there were effectively none:
 `smoke_test.py` printed everything and asserted nothing. The accuracy harness is
 mutation-tested — seed a wrong expected driver and root-cause accuracy drops
 4/4 → 3/4 — and 15 render snapshots gated a refactor that took `app.py` from
@@ -330,10 +340,14 @@ llm/
   fixtures/                  committed offline responses
 data/generate_data.py        seeded generator + planted scenarios (CSV extracts + a JSON event feed)
 engine/sources.py            heterogeneous source loaders (PostgreSQL live / CSV / JSON lines) + provenance
+engine/causal.py             difference-in-differences on the regional panel (identifiable or says why not)
+engine/graph.py              the contract as a knowledge graph: build, downstream, exposure
+engine/forecast.py           the OLS forecast band, in words, with R² stated
+ops/watch.py                 proactive watcher: scans, drafts into the Outbox, never sends
 telemetry.py                 latency / tokens / cost per call and per run
 feedback.py                  decision ledger + feedback loop
 store.py                     event streams: JSONL by default, PostgreSQL via RATIONALE_DB
-tests/                       198 tests: unit, RBAC, integration, UI snapshots, PostgreSQL parity
+tests/                       223 tests: unit, RBAC, integration, UI snapshots, PostgreSQL parity
 ops/bench.py                 latency + concurrency benchmark
 ops/pg_local.py              run the same contract on PostgreSQL without Docker
 PROJECT_REPORT.md            full write-up (architecture, metrics, coverage)

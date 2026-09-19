@@ -8,7 +8,7 @@ what, how it is secured, tested, deployed, and where its limits are. It is
 written to be read end to end by someone who has never seen the code, and to be
 checkable line by line by someone who has. Every constant, threshold and
 measurement quoted here is taken from the code and the evaluation output on the
-`round3-hardening` branch as of 2026-09-19 (206 tests passing; 12 of them run
+`round3-hardening` branch as of 2026-09-19 (223 tests passing; 12 of them run
 against a real PostgreSQL).
 
 Companion documents, each narrower than this one:
@@ -692,7 +692,57 @@ comes from the documents). If declared drivers exist but stayed quiet or
 contradicted, an unstructured anecdote must not rescue confidence: it is
 surfaced as an **unvalidated lead** instead of evidence.
 
-### 11.5 External signals
+### 11.5 A causal estimate, where the data identifies one
+
+Everything above tests concurrent movement. `engine/causal.py` is the one
+place a causal quantity is estimated, and it uses the classical design the
+regional data supports: the regions the contribution analysis puts in focus are
+the treated units, the other regions the role can see are the controls, the
+three months before the analysis month are the pre-period and the month itself
+the post-period. **Difference-in-differences** on that weekly panel gives an
+effect size with a 95% bootstrap interval (weeks resampled as blocks, 400
+draws), a **pre-period placebo** as the parallel-trends check, and **placebo
+regions** as a permutation reference, with the floor stated (five regions
+cannot reach below p = 0.2).
+
+| Case (July 2026, analyst) | Result |
+|---|---|
+| Revenue | North-West vs the other four: about −₹0.71 lakh per day per treated region, 95% CI −₹1.27 to −₹0.17 lakh; scaled to the month about −₹21 lakh, roughly 82% of the total movement; pre-period placebo near zero |
+| Fulfilment SLA | −11.4 percentage points, interval well clear of zero |
+| Complaint rate | +24 per thousand orders |
+| Average order value | Interval spans zero, consistent with the signal gate's "nothing moved" |
+| Marketing conversion | **Not identifiable**: the movement is spread across every region, so there is no untreated comparison group |
+| Enterprise active accounts | **Not identifiable**: no regional daily panel for this KPI |
+| Revenue, sales head | Identifiable with one control region; the output says to treat the interval with caution |
+
+The estimate does **not** enter the confidence score or the gates; it is
+evidence beside the verdict, and the narrative may quote it once with its
+assumption. The assumptions are printed with it, including the one the demo
+data violates slightly: the conveyor failed on 25 June, so the last pre-period
+week is contaminated, which biases the estimate toward zero. It runs in about
+20 ms.
+
+### 11.6 The forecast, in words
+
+The sparkline has always drawn a three-month OLS forecast with a 90% prediction
+interval. `engine/forecast.py` states it: next month's expected value and
+band, anchored on the analysis month and using only history up to it, plus two
+scenarios (this month's level persists; it reverts to baseline) and the caveat
+that the trend explains little of the variance (R² is shown), so the band is
+essentially the normal range next month must leave before it is news.
+
+### 11.7 The contract as a knowledge graph
+
+Systems host sources, sources feed KPIs, KPIs drive KPIs with a declared
+direction, levers control KPIs, owners own levers, approvers approve them.
+`engine/graph.py` builds that graph from the contract (42 nodes, 52 edges), the
+Lineage page draws it with a neighbourhood highlight, `GET /graph` serves it,
+and every investigation reports its **downstream exposure**: which KPIs declare
+this one as a driver and which owners that touches. A fulfilment shock names
+revenue, complaints and enterprise accounts, and four owners, from the contract
+alone.
+
+### 11.8 External signals
 
 `data/market_events.json` holds dated events with tags and regions. An event
 matches when its regions intersect the focus regions (or it is national) and
@@ -769,7 +819,10 @@ stat     = min(|z_driver| / 4, 1)   for a contract driver
 ```
 
 Ranks are computed, never model-scored. The narrative prompt is told the ranks
-are an *explanatory ordering*, not established causation.
+are an *explanatory ordering*, not established causation. Beneath the ranked
+list the page shows **alternatives considered**: every explanation that did not
+lead, with the reason it ranks lower (unexplained, unbacked, contradicted,
+ruled out by a named person, or model-proposed and refused by the guard).
 
 ## 13. The language layer: what the model is allowed to do
 
@@ -852,6 +905,14 @@ dashboard and the narrative to disagree):
 The point of `engine/dispatch.py` is what it does **not** do: it does not let
 the model decide who gets told. The model writes the sentence inside the
 message; the contract decides the envelope.
+
+**Proactive, never autonomous.** `python -m ops.watch` runs the same
+multiplicity-controlled portfolio scan and the same live-lane rule on a
+schedule, drafts into the Outbox whatever the contract routes for any material
+movement that has no message yet, and escalates a live breach to the KPI owner.
+It never sends; approval stays in the Outbox with a person. Drafting is
+idempotent per KPI and month, and per breach and day, and every run is an event
+in the `watch` stream.
 
 ### 15.1 Routing rules
 
@@ -1038,6 +1099,7 @@ Streamlit is one client of the engine, not the system.
 | `GET /scan?role_id=&period=` | The portfolio sweep with multiplicity control applied | Domain RBAC |
 | `POST /investigate` `{kpi_id, period, role_id}` | The reasoning pyramid; returns outcome, confidence, headline, body, actions, ranked hypotheses, evidence ids, method mix, model-call count, wall time | Restricted KPI → **403**; period validated by schema |
 | `GET /sources` | Provenance per source: system, kind, live or extract, rows, as-of, fetch time | — |
+| `GET /graph` | The contract as a knowledge graph: nodes, edges, counts | — |
 | `GET /metrics/summary` | Process telemetry summary | — |
 
 `tests/integration/test_api.py` asserts the API's answer matches the engine's,
@@ -1100,15 +1162,15 @@ accuracy falls below 1.0, and CI runs it on every push.
 
 ## 22. Tests, CI and the benchmark
 
-**206 tests**, where Round 2 had a smoke script that printed everything and
-asserted nothing. 194 run with no database at all; 12 need PostgreSQL and run
+**223 tests**, where Round 2 had a smoke script that printed everything and
+asserted nothing. 211 run with no database at all; 12 need PostgreSQL and run
 in CI against a service container.
 
 | Area | Files | Tests | What they pin |
 |---|---|---|---|
-| `tests/unit/` | anomaly, confidence, contribution, explore, intent, live_ingest, retrieve, screening, sources, store, telemetry | 75 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL; three systems in three formats land typed, the live order system is fetched over the wire in CI, and an unreachable source falls back visibly without leaking credentials |
+| `tests/unit/` | anomaly, causal_graph_forecast, confidence, contribution, explore, intent, live_ingest, retrieve, screening, sources, store, telemetry | 87 | The t-test and prediction SE; confidence cannot reach 1.0, 1-of-1 is not certainty, no-drivers is unassessable not half marks, unverifiable does not outscore verified; improving members are not focus areas, uniform movement is diffuse; BH matches the published 1995 example, both known false positives are suppressed, all five July incidents survive, the revenue margin is thin but holds, the family is role-scoped; "west" does not match "north-west", precedent is strictly past, self-authored precedent cannot crowd out documents; allowlisted sources and bound dates; the live lane refuses to call anything on too few events; the event store writes the same JSONL files it always did, tolerates a torn line, and round-trips through PostgreSQL; three systems in three formats land typed, the live order system is fetched over the wire in CI, and an unreachable source falls back visibly without leaking credentials; the causal estimate is negative with an interval clear of zero for the regional shock and not identifiable for the national one; the graph has no dangling edges and names the right owners; the forecast is anchored on the analysis month |
 | `tests/rbac/` | rbac, cache_isolation | 16 | Row security is in the SQL; the restricted role sees strictly less revenue; hidden KPIs are hidden; masking reaches retrieved evidence, not just the screen; every cached path is role-keyed and a primed cache does not leak across roles, including the IsolationForest cache and the replay ticker |
-| `tests/integration/` | pyramid_paths, learning_loop, abstain_loop, dispatch, mcp_transport, api, backend_parity | 56 | The golden path is TENTATIVE with the right lead; the measurement artifact does not corroborate; the abstain, sparse and no-signal paths; the executive never sees a standardised score; a correction demotes and a confirmation promotes; a confirming answer changes the verdict and carries provenance, a ruling-out keeps the abstention; recipient and approval come from the contract; nothing sends without approval; the MCP flow posts through a real local server, discovers the right tool, and fails closed; the PostgreSQL parity suite of Section 9.1a, including the INSERT-only grant |
+| `tests/integration/` | pyramid_paths, learning_loop, abstain_loop, dispatch, mcp_transport, api, backend_parity, watch | 61 | The golden path is TENTATIVE with the right lead; the measurement artifact does not corroborate; the abstain, sparse and no-signal paths; the executive never sees a standardised score; a correction demotes and a confirmation promotes; a confirming answer changes the verdict and carries provenance, a ruling-out keeps the abstention; recipient and approval come from the contract; nothing sends without approval; the MCP flow posts through a real local server, discovers the right tool, and fails closed; the PostgreSQL parity suite of Section 9.1a, including the INSERT-only grant; the watcher drafts every material movement once, escalates a live breach once per day, and never sends |
 | `tests/ui/` | test_app, test_snapshots | 36 | Headless `AppTest` runs of every page for every role; the ask box fires only on submit; the sales head cannot reach restricted KPIs; the ledger masks for the viewer; dark mode repaints the charts; and **21 rendered-text snapshots** (HTML stripped; latency, timestamps, ids and money normalised) that must be byte-identical after any refactor |
 | `tests/test_layering.py` | — | 23 | The architectural boundaries in Section 7 |
 
@@ -1184,6 +1246,7 @@ python eval.py                           # the accuracy harness (--check to gate
 python -m ops.bench --json               # latency + concurrency (--check to gate)
 python -m ops.ingest --rate 2 --inject-anomaly 40   # the live lane, in a second terminal
 python -m ops.pg_local init              # optional: PostgreSQL as a user process, loaded and provisioned
+python -m ops.watch                      # proactive pass: scan, draft into the Outbox, never send
 python -m pytest                         # 179 tests
 python record_fixtures.py                # re-record the offline demo (needs a key; ~₹25–30)
 ```
@@ -1301,8 +1364,10 @@ In order of how much each would matter, from `docs/DESIGN_DECISIONS.md` D22:
    the contract workshop.
 2. **No seasonality.** The baseline is stationary over ≤ 12 months; STL or
    seasonal baselines are the roadmap item.
-3. **No causal inference.** The contract declares causal links; the engine tests
-   concurrent movement and says so.
+3. **Causal inference only where the data identifies it.** The driver checks
+   test concurrent movement and say so; the one causal estimate is a
+   difference-in-differences that needs an untreated region as a control and
+   refuses when there is none (Section 11.5).
 4. **Prose numbers are not verified against the facts.** The model can still
    mis-state a figure it was given. Cheap to add; not yet done.
 5. **Retrieval is keyword matching**, deliberately, to keep fixtures stable.
@@ -1441,3 +1506,8 @@ considered and the judge's likely question, in `docs/DESIGN_DECISIONS.md`.
 | The abstain loop | D27 |
 | A second engine (PostgreSQL) behind the same contract; the ledger's shared home | D28 |
 | Heterogeneous sources reconciled at ingestion, with provenance | D29 |
+| Causal inference, honestly scoped (difference-in-differences) | D30 |
+| The forecast's voice | D31 |
+| The contract as a knowledge graph; exposure | D32 |
+| Proactive alerts: the watcher | D33 |
+| Alternatives considered; the action chain | D34 |
