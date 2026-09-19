@@ -188,7 +188,9 @@ class _SQLAlchemy:
         if self._engine is None:
             with self._lock:
                 if self._engine is None:
-                    self._engine = sqlalchemy.create_engine(self.url, pool_pre_ping=True)
+                    # no pool_pre_ping: it costs a round trip per query, which over a
+                    # WAN is most of the query. Recycle connections instead.
+                    self._engine = sqlalchemy.create_engine(self.url, pool_recycle=1800)
         return self._engine
 
     def query(self, sql: str, params=()) -> pd.DataFrame:
@@ -253,9 +255,15 @@ def set_backend(dsn: str = ""):
 
 
 def clear_caches():
-    for fn in (source_freshness, source_stats, _account_names,
+    for fn in (source_freshness, source_stats, _account_names, _warehouse_provenance,
                _kpi_series, _metric_series, _dim_breakdown, _revenue_daily):
         fn.cache_clear()
+    try:
+        from . import explore
+        explore._volume.cache_clear()
+        explore._latest_rows.cache_clear()
+    except Exception:
+        pass
     try:                                   # derived caches in sibling modules
         from . import screening, stream
         screening.family_qvalues.cache_clear()
@@ -286,7 +294,19 @@ def source_provenance() -> list:
     if b.name == "duckdb":
         b.conn()                                   # ensure ingested
         return list(b.provenance)
+    return [dict(p) for p in _warehouse_provenance()]
+
+
+@lru_cache(maxsize=1)
+def _warehouse_provenance() -> tuple:
+    """Whole-table row counts and as-of dates on a warehouse backend. Not
+    role-scoped on purpose (it describes what was loaded, like the DuckDB
+    ingestion record), and cached: four queries over a WAN on every render of
+    the Lineage page was most of that page's latency."""
+    from . import sources
+    b = backend()
     reg = sources.registry(load_contract(), BASE)
+    engine_name = b.describe().split(" via ")[0].split(" at ")[0]
     out = []
     for table, col in DATE_COLS.items():
         row = query(f"SELECT COUNT(*) AS n, MAX({col}) AS m FROM {table}").iloc[0]
@@ -295,9 +315,9 @@ def source_provenance() -> list:
                     "kind": spec.get("kind", ""), "grain": spec.get("grain", ""),
                     "refresh": spec.get("refresh", ""), "status": "warehouse",
                     "location": b.describe(), "fetched_at": None,
-                    "note": "loaded into PostgreSQL by ops/pg_local from the declared source",
+                    "note": f"loaded into the warehouse ({engine_name}) from the declared source",
                     "rows": int(row["n"]), "as_of": str(pd.Timestamp(row["m"]).date())})
-    return out
+    return tuple(out)
 
 
 def get_conn():
@@ -453,12 +473,13 @@ def source_stats(role_id: str):
     """
     contract = load_contract()
     where = role_where(role_id)
+    provenance = {p["table"]: p for p in source_provenance()}      # once, not per table
     out = {}
     for table, col in DATE_COLS.items():
         row = query(f"SELECT COUNT(*) AS n, MIN({col}) AS lo, MAX({col}) AS hi "
                     f"FROM {table} WHERE 1=1{where}").iloc[0]
         meta = contract["sources"].get(table, {})
-        prov = {p["table"]: p for p in source_provenance()}.get(table, {})
+        prov = provenance.get(table, {})
         out[table] = {
             "system": meta.get("system", table),
             "grain": meta.get("grain", ""),

@@ -23,6 +23,11 @@ streamlit run app.py
   `python -m ops.pg_local init` once. On the day, set the `RATIONALE_DB` line it
   prints and launch a second `streamlit run app.py` on another port. The Lineage
   page names the engine; the verdicts are the same to three decimals.
+- If an instance runs on a remote engine (Snowflake), start it with
+  `RATIONALE_PREWARM=1` and `--server.runOnSave false`: the boot spends ~12 s
+  warming every cold path so the first click is instant, and no file save can
+  hot-reload the app mid-demo. The Dashboard's "computed live" line names the
+  engine, so the room can see which one it is watching.
 
 ---
 

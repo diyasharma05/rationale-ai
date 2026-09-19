@@ -85,10 +85,32 @@ Two things, both now in the code, neither visible without the account:
    (`COALESCE(c.n,0)::DOUBLE PRECISION`), which every engine honours; after that
    change all 18 series are identical.
 
-Cold-start cost on Snowflake: the first investigation of a session ran about
-25 queries over the wire to Jakarta and took 22 s; the second took 0.2 s from
-the result caches. That is the same shape as PostgreSQL (D28), stretched by
-geography. The role-keyed caches, not the engine, decide the demo's latency.
+### Latency on a remote engine, measured
+
+From this laptop to the Jakarta region, one Snowflake query costs about 0.3 s
+after the connection is up (0.43 s before the per-query connection ping was
+removed); the first query of a process pays 3 to 4 s to open the connection.
+Every page that touches data therefore costs "number of uncached queries times
+0.3 s". Three paths were still uncached and have been fixed: the Lineage page's
+provenance call (four queries on every render), the role-scoped source
+statistics (which called it once per table on first load, nine seconds), and
+the Data page's two queries (every widget touch). After the fix:
+
+| Call | First time | Every time after |
+|---|---|---|
+| Portfolio scan for a role | ~3 s | 16 ms |
+| Provenance (Lineage page) | 1.2 s | 0 |
+| Source statistics for a role | 1.2 s | 0 |
+| Data page query | 0.3 s | 0 |
+| Live Feed's daily frame for a role | 1.6 s | 0 |
+| First investigation of a KPI | ~20 s | 0.2 s |
+| Pre-warming every cold path for all three roles | 12 s, once at boot | — |
+
+`RATIONALE_PREWARM=1` runs that pre-warm when the app starts, behind a spinner,
+so the first click in the room is a cache hit. It is harmless on the in-process
+engine and worth the twelve seconds on a remote one. The shape is the same as
+PostgreSQL (D28), stretched by geography: the role-keyed caches, not the
+engine, decide the demo's latency.
 
 ## What "proven" means here
 

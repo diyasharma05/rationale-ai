@@ -74,6 +74,23 @@ def start_metrics():
 
 
 @st.cache_resource
+def prewarm():
+    """RATIONALE_PREWARM=1: run every cold path once at boot so the first click
+    in the room is a cache hit. Matters on a remote engine, where each query
+    is a round trip; harmless in-process."""
+    if os.environ.get("RATIONALE_PREWARM", "").strip() != "1":
+        return False
+    from engine import stream as _stream
+    from services import scan as _scan
+    for r in db.load_roles():
+        _scan.scan(r, DEFAULT_PERIOD)
+        db.source_stats(r)
+        _stream._daily_region(r)
+    db.source_provenance()
+    return True
+
+
+@st.cache_resource
 def get_llm():
     """One client per process. Mock vs live is decided at construction, so
     changing the key clears this cache rather than mutating the client."""
@@ -120,6 +137,9 @@ with st.sidebar:
     st.divider()
     llm = get_llm()
     _metrics_up = start_metrics()
+    if os.environ.get("RATIONALE_PREWARM", "").strip() == "1":
+        with st.spinner(f"Warming caches on {db.backend_info()['label']}…"):
+            prewarm()
     st.markdown("".join(method_chip(k) for k in ("sql", "stats", "ml", "llm")),
                 unsafe_allow_html=True)
     st.caption("The engine is SQL + statistics + ML first; the LLM only writes language.")

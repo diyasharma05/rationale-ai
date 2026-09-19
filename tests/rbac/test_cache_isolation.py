@@ -14,6 +14,7 @@ from engine import cache, db, retrieve, screening, stats_ml, stream
 # Role-independent by construction: contract/role definitions and source
 # freshness are the same for everyone, and account names are masked at use.
 ROLE_INDEPENDENT = {"load_contract", "load_roles", "source_freshness", "_account_names",
+                    "_warehouse_provenance",          # whole-table ingestion record, like DuckDB's
                     "load_corpus", "benjamini_hochberg", "_term_re"}
 
 

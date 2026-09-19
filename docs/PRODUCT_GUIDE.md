@@ -1267,6 +1267,7 @@ the demo is unchanged.
 | `RATIONALE_STORE` | `jsonl` keeps the event streams on disk while `RATIONALE_DB` supplies the numbers; a DSN sends them elsewhere |
 | `RATIONALE_PG_BIN`, `RATIONALE_PG_PORT` | Where `ops/pg_local.py` finds the PostgreSQL binaries, and the port it uses (default 5433) |
 | `RATIONALE_TEST_PG` | An owner DSN; enables the PostgreSQL store and parity tests |
+| `RATIONALE_PREWARM=1` | Run every cold path for every role once at boot, behind a spinner, so the first click is a cache hit. Twelve seconds on Snowflake from this laptop; harmless in-process |
 | `RATIONALE_OMS_DSN=postgresql://…` | Keep DuckDB as the engine but fetch the order system live from this database at start-up (Section 9.1). Unset: the nightly extract is used and the Lineage page says so |
 | `RATIONALE_METRICS=1` | Exposes Prometheus metrics on `:9108` (`RATIONALE_METRICS_PORT` to change) |
 | `RATIONALE_DISPATCH=mcp` | Selects the MCP transport instead of dry run |
@@ -1336,8 +1337,12 @@ after two findings were fixed (the bulk loader's date types; Snowflake's
 fixed-point division in the complaint-rate ratio, now stated as double
 arithmetic in the contract), the golden path TENTATIVE 0.715 with the same
 causal estimate, the first investigation 22 s over the wire and the second
-0.2 s from the caches. Databricks has the same tooling and no account yet.
-BigQuery is a supported source, not a supported engine.
+0.2 s from the caches. One remote query costs about 0.3 s from this laptop,
+so every page costs its uncached queries times that; the provenance, source
+statistics and Data-page queries are now cached too, and `RATIONALE_PREWARM=1`
+runs every cold path at boot (12 s) so the first click in the room is instant.
+Databricks has the same tooling and no account yet. BigQuery is a supported
+source, not a supported engine.
 
 ### 25.3 Rehearsed answers
 

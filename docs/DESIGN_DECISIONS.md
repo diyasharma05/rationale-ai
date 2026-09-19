@@ -819,7 +819,11 @@ change every engine accepts). After both, all 18 KPI series are identical to
 DuckDB to 1e-9, the golden path is TENTATIVE 0.715 with the same rank-1 driver
 and the same causal estimate, and the tracking bug abstains at 0.438. First
 investigation of a session 22 s over the wire, second 0.2 s from the caches.
-Databricks remains documented, not run.
+One remote query costs ~0.3 s from this laptop (a per-query connection ping
+that doubled it is gone), the three page paths that were still uncached
+(provenance, role-scoped source statistics, the Data page) are cached now, and
+`RATIONALE_PREWARM=1` runs every cold path at boot in 12 s so the first click
+in the room is a hit. Databricks remains documented, not run.
 
 **Judge asks:** *"So it runs on Snowflake?"*
 **Answer:** Yes, as of yesterday, and the parity check is what made it true:
