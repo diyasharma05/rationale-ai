@@ -25,8 +25,11 @@ os.environ["MOCK_MODE"] = "1"
 os.environ["RATIONALE_STATE"] = str(_STATE)
 # The default suite always runs on DuckDB + JSONL. PostgreSQL is opt-in through
 # RATIONALE_TEST_PG (see tests/integration/test_backend_parity.py).
-os.environ.pop("RATIONALE_DB", None)
-os.environ.pop("RATIONALE_OMS_DSN", None)   # the OMS is read from its extract unless a test says otherwise
+# Set to EMPTY rather than popped: llm/client.py loads .env with python-dotenv, which
+# fills missing variables but never overrides present ones, so an operator's .env
+# with a warehouse URL can never redirect the test suite.
+for _var in ("RATIONALE_DB", "RATIONALE_OMS_DSN", "RATIONALE_WAREHOUSE_URL"):
+    os.environ[_var] = ""                     # DuckDB engine; OMS from its extract
 
 import pytest  # noqa: E402
 

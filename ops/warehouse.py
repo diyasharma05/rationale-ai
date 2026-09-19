@@ -35,6 +35,11 @@ import pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ.setdefault("MOCK_MODE", "1")
+try:                                    # credentials live in .env (gitignored), never in chat or git
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(ROOT, ".env"))
+except ImportError:
+    pass
 
 from engine import db, sources                              # noqa: E402
 from store import redact                                    # noqa: E402
@@ -58,14 +63,23 @@ def frames() -> dict:
 def smoke(url: str) -> dict:
     import sqlalchemy
     t0 = time.perf_counter()
+    dialect = db.dialect_of(url)
     eng = sqlalchemy.create_engine(url)
+    info = {}
     try:
         with eng.connect() as c:
             one = c.execute(sqlalchemy.text("SELECT 1 AS one")).scalar()
+            if dialect == "snowflake":
+                row = c.execute(sqlalchemy.text(
+                    "SELECT CURRENT_ACCOUNT(), CURRENT_REGION(), CURRENT_VERSION(), CURRENT_WAREHOUSE(), CURRENT_ROLE()")).fetchone()
+                info = dict(zip(("account", "region", "version", "warehouse", "role"), row))
+            elif dialect == "databricks":
+                row = c.execute(sqlalchemy.text("SELECT current_catalog(), current_schema(), current_version().dbsql_version")).fetchone()
+                info = dict(zip(("catalog", "schema", "dbsql_version"), row))
     finally:
         eng.dispose()
-    return {"dialect": db.dialect_of(url), "url": redact(url), "select_1": one,
-            "ms": round((time.perf_counter() - t0) * 1000)}
+    return {"dialect": dialect, "url": redact(url), "select_1": one,
+            "ms": round((time.perf_counter() - t0) * 1000), **info}
 
 
 def _load_snowflake(url: str, table: str, df: pd.DataFrame, schema: str | None) -> int:
@@ -76,8 +90,15 @@ def _load_snowflake(url: str, table: str, df: pd.DataFrame, schema: str | None) 
     database, sch = (u.database or "").split("/", 1) if "/" in (u.database or "") else (u.database, None)
     kw = {"user": u.username, "password": u.password, "account": u.host,
           "database": database, "schema": schema or sch, **{k: v for k, v in u.query.items()}}
-    conn = snowflake.connector.connect(**{k: v for k, v in kw.items() if v})
+    conn = snowflake.connector.connect(**{k: v for k, v in kw.items() if v and k not in ("database", "schema")})
     try:
+        # a trial account has no database of its own: create what the URL names
+        cur = conn.cursor()
+        cur.execute(f"CREATE DATABASE IF NOT EXISTS {database}")
+        cur.execute(f"CREATE SCHEMA IF NOT EXISTS {database}.{schema or sch}")
+        cur.execute(f"USE SCHEMA {database}.{schema or sch}")
+        if kw.get("warehouse"):
+            cur.execute(f"USE WAREHOUSE {kw['warehouse']}")
         # unquoted identifiers: Snowflake upper-cases them, and the contract's
         # unquoted lower-case SQL resolves to the same names
         ok, _chunks, nrows, _ = write_pandas(conn, df, table.upper(), auto_create_table=True,
@@ -164,11 +185,12 @@ def verify(url: str, roles=ROLES, rtol: float = 1e-9) -> dict:
 
 
 def env(url: str):
+    shown = redact(url)
+    print("# Put ONE of these in .env (gitignored) or your shell. Shown redacted; use the real URL.")
     print("# the order system fetched live from this warehouse (DuckDB stays the engine):")
-    print(f'$env:RATIONALE_OMS_DSN = "{url}"')
+    print(f'RATIONALE_OMS_DSN={shown}')
     print("# or the whole contract executed on this warehouse:")
-    print(f'$env:RATIONALE_DB = "{url}"')
-    print("# (bash: export NAME=\"...\")   set these in the shell, never in a committed file")
+    print(f'RATIONALE_DB={shown}')
 
 
 def main(argv=None):
@@ -182,7 +204,9 @@ def main(argv=None):
         sys.exit("give --url or set RATIONALE_WAREHOUSE_URL")
     if a.command == "smoke":
         r = smoke(a.url)
-        print(f"{r['dialect']}: SELECT 1 -> {r['select_1']} in {r['ms']} ms at {r['url']}")
+        extra = {k: v for k, v in r.items() if k not in ("dialect", "url", "select_1", "ms")}
+        print(f"{r['dialect']}: SELECT 1 -> {r['select_1']} in {r['ms']} ms at {r['url']}"
+              + (f"  {extra}" if extra else ""))
     elif a.command == "load":
         for t, info in load(a.url, a.schema).items():
             print(f"  loaded {t:<18} {info['rows']:>8,} rows  {info['ms']:>7} ms")
